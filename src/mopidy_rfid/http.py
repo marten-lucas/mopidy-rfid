@@ -87,9 +87,41 @@ class SearchHandler(tornado.web.RequestHandler):
                     search_result = self.core.library.search({"any": [q]}).get()
                     if search_result:
                         for result in search_result:
-                            tracks = getattr(result, "tracks", [])
-                            for t in tracks:
-                                results.append({"uri": getattr(t, "uri", ""), "name": getattr(t, "name", "")})
+                            # Add tracks
+                            tracks = getattr(result, "tracks", None)
+                            if tracks:
+                                for t in tracks:
+                                    name = getattr(t, "name", None) or "Unknown"
+                                    artists = getattr(t, "artists", None)
+                                    artist_str = ", ".join([getattr(a, "name", "") for a in artists]) if artists else ""
+                                    results.append({
+                                        "uri": getattr(t, "uri", ""), 
+                                        "name": f"{name} - {artist_str}" if artist_str else name,
+                                        "type": "track"
+                                    })
+                            
+                            # Add albums
+                            albums = getattr(result, "albums", None)
+                            if albums:
+                                for a in albums:
+                                    name = getattr(a, "name", None) or "Unknown Album"
+                                    artists = getattr(a, "artists", None)
+                                    artist_str = ", ".join([getattr(ar, "name", "") for ar in artists]) if artists else ""
+                                    results.append({
+                                        "uri": getattr(a, "uri", ""),
+                                        "name": f"{name} - {artist_str}" if artist_str else name,
+                                        "type": "album"
+                                    })
+                            
+                            # Add playlists
+                            playlists = getattr(result, "playlists", None)
+                            if playlists:
+                                for p in playlists:
+                                    results.append({
+                                        "uri": getattr(p, "uri", ""),
+                                        "name": getattr(p, "name", "Unknown Playlist"),
+                                        "type": "playlist"
+                                    })
                 except Exception:
                     logger.exception("http: Mopidy library search failed")
             self.write({"results": results})

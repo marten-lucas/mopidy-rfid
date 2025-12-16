@@ -329,7 +329,17 @@ document.addEventListener('DOMContentLoaded', () => {
   // Init Materialize components
   M.Modal.init(document.querySelectorAll('.modal'));
   M.FormSelect.init(document.querySelectorAll('select'));
-  M.Tabs.init(document.querySelectorAll('.tabs'));
+  const tabs = M.Tabs.init(document.querySelectorAll('.tabs'), {
+    onShow: (tab) => {
+      // Show FAB only on mappings tab
+      const fab = document.querySelector('.fixed-action-btn');
+      if (tab.id === 'mappings-tab') {
+        fab.style.display = 'block';
+      } else {
+        fab.style.display = 'none';
+      }
+    }
+  });
   
   // Event listeners
   document.getElementById('open-add').addEventListener('click', openAddModal);
