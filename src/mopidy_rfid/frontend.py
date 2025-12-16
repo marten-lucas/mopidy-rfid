@@ -165,7 +165,38 @@ class RFIDFrontend(_BaseClass):
                 logger.info("RFIDFrontend: adding URI to tracklist: %s", uri)
                 # Clear tracklist then add and play
                 self.core.tracklist.clear().get()
-                self.core.tracklist.add(uri=uri).get()
+                
+                # Handle different URI types
+                if uri.startswith('spotify:album:') or ':album:' in uri:
+                    # For albums, lookup tracks and add them
+                    lookup_result = self.core.library.lookup(uris=[uri]).get()
+                    if lookup_result and uri in lookup_result:
+                        tracks = lookup_result[uri]
+                        if tracks:
+                            for track in tracks:
+                                self.core.tracklist.add(uris=[track.uri]).get()
+                        else:
+                            logger.warning("Album has no tracks: %s", uri)
+                    else:
+                        # Fallback: try to add directly
+                        self.core.tracklist.add(uris=[uri]).get()
+                elif uri.startswith('spotify:playlist:') or ':playlist:' in uri:
+                    # For playlists, lookup tracks and add them
+                    lookup_result = self.core.library.lookup(uris=[uri]).get()
+                    if lookup_result and uri in lookup_result:
+                        tracks = lookup_result[uri]
+                        if tracks:
+                            for track in tracks:
+                                self.core.tracklist.add(uris=[track.uri]).get()
+                        else:
+                            logger.warning("Playlist has no tracks: %s", uri)
+                    else:
+                        # Fallback: try to add directly
+                        self.core.tracklist.add(uris=[uri]).get()
+                else:
+                    # For tracks or other URIs, add directly
+                    self.core.tracklist.add(uris=[uri]).get()
+                
                 self.core.playback.play().get()
 
             # Broadcast event to Web UI clients via http module
