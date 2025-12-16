@@ -166,11 +166,18 @@ function deleteMapping(tag) {
 
 function searchLibrary(query, type) {
   const q = encodeURIComponent(query);
+  console.log('Fetching search results for:', query); // Debug
   fetch(`/rfid/api/search?q=${q}`)
-    .then(r => r.json())
-    .then(data => renderSearchResults(data.results || [], type))
+    .then(r => {
+      console.log('Search response status:', r.status); // Debug
+      return r.json();
+    })
+    .then(data => {
+      console.log('Search data received:', data); // Debug
+      renderSearchResults(data.results || [], type);
+    })
     .catch(e => {
-      console.error(e);
+      console.error('Search error:', e);
       M.toast({html: 'Search failed', classes: 'red'});
     });
 }
@@ -179,12 +186,25 @@ function renderSearchResults(results, filterType) {
   const container = document.getElementById('search-results');
   container.innerHTML = '';
   
+  console.log('Rendering search results:', results); // Debug
+  
   if (!results || results.length === 0) {
     container.innerHTML = '<li class="collection-item grey-text">No results found</li>';
     return;
   }
   
-  results.forEach(item => {
+  // Filter results by type if needed
+  let filteredResults = results;
+  if (filterType && !['STOP', 'TOGGLE_PLAY'].includes(filterType)) {
+    filteredResults = results.filter(r => r.type === filterType);
+  }
+  
+  if (filteredResults.length === 0) {
+    container.innerHTML = '<li class="collection-item grey-text">No results of this type found</li>';
+    return;
+  }
+  
+  filteredResults.forEach(item => {
     const li = document.createElement('li');
     li.className = 'collection-item';
     
@@ -192,7 +212,12 @@ function renderSearchResults(results, filterType) {
     title.className = 'title';
     title.textContent = item.name || item.uri;
     
+    const type = document.createElement('p');
+    type.className = 'grey-text';
+    type.textContent = item.type || 'unknown';
+    
     li.appendChild(title);
+    li.appendChild(type);
     li.style.cursor = 'pointer';
     
     li.addEventListener('click', () => {
@@ -365,11 +390,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const type = document.getElementById('type-select').value;
     
     if (query.length > 2) {
+      console.log('Searching for:', query, 'type:', type); // Debug
       searchTimeout = setTimeout(() => {
         searchLibrary(query, type);
       }, 300);
     } else {
       document.getElementById('search-results').innerHTML = '';
+      if (query.length === 0) {
+        document.getElementById('search-results').innerHTML = '<li class="collection-item grey-text">Type at least 3 characters to search</li>';
+      }
     }
   });
   
