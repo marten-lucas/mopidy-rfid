@@ -14,8 +14,13 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
-    "mopidy >= 3.4.1",
-    "pykka >= 4.1",
+    "Mopidy>=3.0",
+    "Pykka>=2.0",
+    "setuptools",
+    "spidev",
+    "mfrc522",
+    "rpi-ws281x",
+    "RPi.GPIO",
 ]
 
 [project.urls]
@@ -98,7 +103,7 @@ ignore = [
 
 
 [tool.setuptools.package-data]
-"*" = ["*.conf"]
+mopidy_rfid = ["*.conf", "web/static/*"]
 
 
 [tool.setuptools_scm]

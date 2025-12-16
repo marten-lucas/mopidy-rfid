@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mopidy-rfid admin</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link href="/style.css" rel="stylesheet">
+</head>
+<body>
+  <nav><div class="nav-wrapper teal"><a href="#" class="brand-logo center">mopidy-rfid</a></div></nav>
+  <div class="container" style="padding-top:20px">
+    <div class="row">
+      <div class="col s8">
+        <h5>Mappings</h5>
+      </div>
+      <div class="col s4 right-align">
+        <div class="input-field inline">
+          <input id="search-input" type="search">
+          <label for="search-input">Search library</label>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col s12">
+        <table class="striped highlight">
+          <thead><tr><th>Tag</th><th>Action / URI</th><th></th></tr></thead>
+          <tbody id="mappings-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- FAB -->
+  <div class="fixed-action-btn"><a id="open-add" class="btn-floating btn-large red"><i class="large material-icons">add</i></a></div>
+
+  <!-- Modal Structure -->
+  <div id="mapping-modal" class="modal">
+    <div class="modal-content">
+      <h4 id="modal-title">Add Mapping</h4>
+      <div class="row">
+        <div class="input-field col s12">
+          <input id="tag-input" type="text">
+          <label for="tag-input">Tag ID</label>
+        </div>
+        <div class="input-field col s12">
+          <select id="type-select">
+            <option value="URI" selected>URI</option>
+            <option value="TOGGLE_PLAY">TOGGLE_PLAY</option>
+            <option value="STOP">STOP</option>
+          </select>
+          <label>Action Type</label>
+        </div>
+        <div class="input-field col s12" id="uri-field">
+          <input id="uri-input" type="text">
+          <label for="uri-input">URI</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" id="save-mapping" class="modal-close waves-effect waves-green btn">Save</a>
+      <a href="#!" class="modal-close waves-effect btn-flat">Cancel</a>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

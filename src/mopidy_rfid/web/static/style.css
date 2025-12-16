@@ -1,0 +1,4 @@
+body { font-family: Roboto, Arial, sans-serif; }
+.pointer{cursor:pointer}
+pre{white-space:pre-wrap}
+#search-input{min-width:200px}
