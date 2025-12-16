@@ -134,12 +134,30 @@
           </select>
           <label>Action Type</label>
         </div>
-        <div class="input-field col s12" id="search-field" style="display:none;">
-          <input id="search-query" type="text" placeholder="Search...">
-          <label for="search-query">Search</label>
-        </div>
-        <div id="results-container" style="display:none; max-height:300px; overflow-y:auto;">
-          <ul class="collection" id="search-results"></ul>
+        <div id="items-container" style="display:none;">
+          <div class="input-field">
+            <input id="filter-query" type="text" placeholder="Filter by name...">
+            <label for="filter-query">Filter</label>
+          </div>
+          <div style="max-height:300px; overflow-y:auto; border: 1px solid #ddd; border-radius: 4px;">
+            <table class="striped hover">
+              <tbody id="items-list"></tbody>
+            </table>
+          </div>
+          <div id="loading-indicator" style="display:none; text-align:center; padding:20px;">
+            <div class="preloader-wrapper small active">
+              <div class="spinner-layer spinner-teal-only">
+                <div class="circle-clipper left">
+                  <div class="circle"></div>
+                </div><div class="gap-patch">
+                  <div class="circle"></div>
+                </div><div class="circle-clipper right">
+                  <div class="circle"></div>
+                </div>
+              </div>
+            </div>
+            <p>Loading...</p>
+          </div>
         </div>
         <input type="hidden" id="selected-uri">
       </div>

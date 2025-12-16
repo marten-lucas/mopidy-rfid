@@ -71,6 +71,63 @@ class MappingDeleteHandler(tornado.web.RequestHandler):
             self.write({"ok": False})
 
 
+class BrowseHandler(tornado.web.RequestHandler):
+    def initialize(self, core: Any):
+        self.core = core
+
+    async def get(self):
+        item_type = self.get_query_argument("type", default="track")
+        try:
+            items = []
+            if self.core is not None:
+                try:
+                    # Browse Spotify library
+                    browse_result = self.core.library.browse(uri=None).get()
+                    
+                    if item_type == "track":
+                        # Get all tracks from all sources
+                        for ref in browse_result:
+                            if ref.type == "directory":
+                                # Browse into directory
+                                sub_result = self.core.library.browse(uri=ref.uri).get()
+                                for sub_ref in sub_result[:50]:  # Limit to 50 items
+                                    if sub_ref.type == "track":
+                                        items.append({
+                                            "uri": sub_ref.uri,
+                                            "name": sub_ref.name or "Unknown Track",
+                                            "type": "track"
+                                        })
+                    elif item_type == "album":
+                        # Get albums
+                        for ref in browse_result:
+                            if ref.type == "directory":
+                                sub_result = self.core.library.browse(uri=ref.uri).get()
+                                for sub_ref in sub_result[:50]:
+                                    if sub_ref.type == "album":
+                                        items.append({
+                                            "uri": sub_ref.uri,
+                                            "name": sub_ref.name or "Unknown Album",
+                                            "type": "album"
+                                        })
+                    elif item_type == "playlist":
+                        # Get playlists
+                        playlists_result = self.core.playlists.as_list().get()
+                        for pl in playlists_result:
+                            items.append({
+                                "uri": pl.uri,
+                                "name": pl.name or "Unknown Playlist",
+                                "type": "playlist"
+                            })
+                except Exception:
+                    logger.exception("http: Mopidy library browse failed")
+            
+            self.write({"items": items})
+        except Exception:
+            logger.exception("http: browse handler failed")
+            self.set_status(500)
+            self.write({"items": []})
+
+
 class SearchHandler(tornado.web.RequestHandler):
     def initialize(self, core: Any):
         self.core = core
@@ -179,6 +236,7 @@ def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
         (r"/api/mappings", MappingsHandler, {"frontend": frontend}),
         (r"/api/mappings/(.*)", MappingDeleteHandler, {"frontend": frontend}),
         (r"/api/search", SearchHandler, {"core": core}),
+        (r"/api/browse", BrowseHandler, {"core": core}),
         (r"/ws", WSHandler, {}),
         (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": static_path}),
         (r"/(favicon\.ico)", tornado.web.StaticFileHandler, {"path": static_path}),

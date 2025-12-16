@@ -164,71 +164,73 @@ function deleteMapping(tag) {
     });
 }
 
-function searchLibrary(query, type) {
-  const q = encodeURIComponent(query);
-  console.log('Fetching search results for:', query); // Debug
-  fetch(`/rfid/api/search?q=${q}`)
-    .then(r => {
-      console.log('Search response status:', r.status); // Debug
-      return r.json();
-    })
+let allItems = [];
+let filteredItems = [];
+
+function loadItemsByType(type) {
+  const container = document.getElementById('items-list');
+  const loader = document.getElementById('loading-indicator');
+  
+  container.innerHTML = '';
+  loader.style.display = 'block';
+  
+  console.log('Loading items of type:', type);
+  
+  fetch(`/rfid/api/browse?type=${type}`)
+    .then(r => r.json())
     .then(data => {
-      console.log('Search data received:', data); // Debug
-      renderSearchResults(data.results || [], type);
+      loader.style.display = 'none';
+      allItems = data.items || [];
+      filteredItems = allItems;
+      console.log('Loaded items:', allItems.length);
+      renderItems(filteredItems);
     })
     .catch(e => {
-      console.error('Search error:', e);
-      M.toast({html: 'Search failed', classes: 'red'});
+      loader.style.display = 'none';
+      console.error('Browse error:', e);
+      M.toast({html: 'Failed to load items', classes: 'red'});
     });
 }
 
-function renderSearchResults(results, filterType) {
-  const container = document.getElementById('search-results');
+function renderItems(items) {
+  const container = document.getElementById('items-list');
   container.innerHTML = '';
   
-  console.log('Rendering search results:', results); // Debug
-  
-  if (!results || results.length === 0) {
-    container.innerHTML = '<li class="collection-item grey-text">No results found</li>';
+  if (!items || items.length === 0) {
+    container.innerHTML = '<tr><td class="grey-text center-align">No items found</td></tr>';
     return;
   }
   
-  // Filter results by type if needed
-  let filteredResults = results;
-  if (filterType && !['STOP', 'TOGGLE_PLAY'].includes(filterType)) {
-    filteredResults = results.filter(r => r.type === filterType);
-  }
-  
-  if (filteredResults.length === 0) {
-    container.innerHTML = '<li class="collection-item grey-text">No results of this type found</li>';
-    return;
-  }
-  
-  filteredResults.forEach(item => {
-    const li = document.createElement('li');
-    li.className = 'collection-item';
+  items.forEach(item => {
+    const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
     
-    const title = document.createElement('span');
-    title.className = 'title';
-    title.textContent = item.name || item.uri;
+    const td = document.createElement('td');
+    td.textContent = item.name || item.uri;
     
-    const type = document.createElement('p');
-    type.className = 'grey-text';
-    type.textContent = item.type || 'unknown';
+    tr.appendChild(td);
     
-    li.appendChild(title);
-    li.appendChild(type);
-    li.style.cursor = 'pointer';
-    
-    li.addEventListener('click', () => {
+    tr.addEventListener('click', () => {
       document.getElementById('selected-uri').value = item.uri;
-      document.querySelectorAll('#search-results .collection-item').forEach(el => el.classList.remove('active'));
-      li.classList.add('active');
+      document.querySelectorAll('#items-list tr').forEach(el => el.classList.remove('teal', 'lighten-5'));
+      tr.classList.add('teal', 'lighten-5');
       document.getElementById('save-mapping').classList.remove('disabled');
     });
     
-    container.appendChild(li);
+    container.appendChild(tr);
   });
+}
+
+function filterItems(query) {
+  if (!query) {
+    filteredItems = allItems;
+  } else {
+    const lowerQuery = query.toLowerCase();
+    filteredItems = allItems.filter(item => 
+      (item.name || '').toLowerCase().includes(lowerQuery)
+    );
+  }
+  renderItems(filteredItems);
 }
 
 // Modal handlers
@@ -313,22 +315,24 @@ function handleScannedTag(tagId) {
 
 function updateActionTypeUI() {
   const type = document.getElementById('type-select').value;
-  const searchField = document.getElementById('search-field');
-  const resultsContainer = document.getElementById('results-container');
+  const itemsContainer = document.getElementById('items-container');
   const selectedUri = document.getElementById('selected-uri').value;
   
   if (['STOP', 'TOGGLE_PLAY'].includes(type)) {
-    searchField.style.display = 'none';
-    resultsContainer.style.display = 'none';
+    itemsContainer.style.display = 'none';
     document.getElementById('selected-uri').value = type;
     document.getElementById('save-mapping').classList.remove('disabled');
   } else if (type) {
-    searchField.style.display = 'block';
-    resultsContainer.style.display = 'block';
+    itemsContainer.style.display = 'block';
+    document.getElementById('filter-query').value = '';
     if (!selectedUri || ['STOP', 'TOGGLE_PLAY'].includes(selectedUri)) {
       document.getElementById('selected-uri').value = '';
       document.getElementById('save-mapping').classList.add('disabled');
     }
+    // Load items for this type
+    loadItemsByType(type);
+  } else {
+    itemsContainer.style.display = 'none';
   }
 }
 
@@ -384,22 +388,9 @@ document.addEventListener('DOMContentLoaded', () => {
   
   document.getElementById('type-select').addEventListener('change', updateActionTypeUI);
   
-  document.getElementById('search-query').addEventListener('input', (e) => {
-    clearTimeout(searchTimeout);
+  document.getElementById('filter-query').addEventListener('input', (e) => {
     const query = e.target.value.trim();
-    const type = document.getElementById('type-select').value;
-    
-    if (query.length > 2) {
-      console.log('Searching for:', query, 'type:', type); // Debug
-      searchTimeout = setTimeout(() => {
-        searchLibrary(query, type);
-      }, 300);
-    } else {
-      document.getElementById('search-results').innerHTML = '';
-      if (query.length === 0) {
-        document.getElementById('search-results').innerHTML = '<li class="collection-item grey-text">Type at least 3 characters to search</li>';
-      }
-    }
+    filterItems(query);
   });
   
   // Settings tab event listeners
