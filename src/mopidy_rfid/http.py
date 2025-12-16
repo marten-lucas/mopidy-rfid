@@ -138,12 +138,15 @@ def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
         logger.exception("http: Could not locate RFIDFrontend actor")
 
     web_path = os.path.join(os.path.dirname(__file__), "web")
+    static_path = os.path.join(web_path, "static")
 
     return [
         (r"/api/mappings", MappingsHandler, {"frontend": frontend}),
         (r"/api/mappings/(.*)", MappingDeleteHandler, {"frontend": frontend}),
         (r"/api/search", SearchHandler, {"core": core}),
         (r"/ws", WSHandler, {}),
+        (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": static_path}),
+        (r"/(favicon\.ico)", tornado.web.StaticFileHandler, {"path": static_path}),
         (r"/(.*)", tornado.web.StaticFileHandler, {"path": web_path, "default_filename": "index.html"}),
     ]
 
