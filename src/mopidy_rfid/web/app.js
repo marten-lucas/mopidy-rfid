@@ -58,7 +58,9 @@ function handleWebSocketMessage(data) {
       // Modal is open and waiting for scan
       handleScannedTag(data.tag_id);
     } else {
-      M.toast({html: `Tag scanned: ${data.tag_id}`, classes: 'blue'});
+      // Tag scanned while not in add mode - highlight and show edit option
+      M.toast({html: `Tag ${data.tag_id} scanned`, classes: 'blue'});
+      highlightAndEditTag(data.tag_id);
     }
     fetchMappings(); // Refresh table
   } else if (data.event === 'mappings_updated') {
@@ -83,7 +85,7 @@ function renderMappings(map) {
   
   const tags = Object.keys(map);
   if (tags.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" class="center grey-text">No mappings yet</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="center grey-text">No mappings yet</td></tr>';
     updateSettings(map);
     return;
   }
@@ -93,7 +95,8 @@ function renderMappings(map) {
   tags.forEach(tag => {
     const mapping = map[tag];
     const tr = document.createElement('tr');
-    tr.className = 'mapping-row pointer';
+    tr.className = 'mapping-row';
+    tr.setAttribute('data-tag', tag);
     
     const tdTag = document.createElement('td');
     tdTag.textContent = tag;
@@ -105,7 +108,18 @@ function renderMappings(map) {
     const uri = mapping.uri || mapping; // Support old format
     tdUri.innerHTML = `<code>${escapeHtml(formatAction(uri))}</code>`;
     
-    const tdDel = document.createElement('td');
+    const tdActions = document.createElement('td');
+    tdActions.style.whiteSpace = 'nowrap';
+    
+    const editBtn = document.createElement('a');
+    editBtn.className = 'waves-effect waves-light btn-small blue';
+    editBtn.innerHTML = '<i class="material-icons">edit</i>';
+    editBtn.style.marginRight = '5px';
+    editBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      openEditModal(tag, mapping);
+    });
+    
     const delBtn = document.createElement('a');
     delBtn.className = 'waves-effect waves-light btn-small red';
     delBtn.innerHTML = '<i class="material-icons">delete</i>';
@@ -115,16 +129,40 @@ function renderMappings(map) {
         deleteMapping(tag);
       }
     });
-    tdDel.appendChild(delBtn);
+    
+    tdActions.appendChild(editBtn);
+    tdActions.appendChild(delBtn);
     
     tr.appendChild(tdTag);
     tr.appendChild(tdDesc);
     tr.appendChild(tdUri);
-    tr.appendChild(tdDel);
+    tr.appendChild(tdActions);
     
-    tr.addEventListener('click', () => openEditModal(tag, mapping));
     tbody.appendChild(tr);
   });
+}
+
+function highlightAndEditTag(tagId) {
+  // Remove previous highlights
+  document.querySelectorAll('.mapping-row').forEach(row => {
+    row.classList.remove('teal', 'lighten-3');
+  });
+  
+  // Find and highlight the row with this tag
+  const row = document.querySelector(`.mapping-row[data-tag="${tagId}"]`);
+  if (row) {
+    row.classList.add('teal', 'lighten-3');
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    // Show a toast with edit option
+    setTimeout(() => {
+      const editBtn = row.querySelector('.btn-small.blue');
+      if (editBtn) {
+        editBtn.classList.add('pulse');
+        setTimeout(() => editBtn.classList.remove('pulse'), 2000);
+      }
+    }, 300);
+  }
 }
 
 function saveMapping(tag, uri, description) {
