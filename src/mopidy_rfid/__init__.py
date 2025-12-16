@@ -4,6 +4,7 @@ import importlib
 import logging
 import pkgutil
 from typing import Any, Optional
+import pathlib
 
 from typing import TYPE_CHECKING
 
@@ -29,10 +30,10 @@ class Extension(ext.Extension):  # type: ignore[name-defined]
     version = "0.0.0"
 
     def get_default_config(self) -> str:
-        # Use the package name for reading the default config file
+        # Load the bundled default config file (ext.conf) from the package resources
         try:
-            if mopidy_config is not None:
-                return mopidy_config.read(__package__)
+            conf_file = pathlib.Path(__file__).parent / "ext.conf"
+            return conf_file.read_text()
         except Exception:
             logger.exception("Failed to read default config for mopidy-rfid")
         return ""
