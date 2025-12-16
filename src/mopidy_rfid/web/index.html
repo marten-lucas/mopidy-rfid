@@ -7,15 +7,12 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <link href="style.css" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="static/favicon.ico">
 </head>
 <body>
   <nav>
     <div class="nav-wrapper teal">
       <a href="#" class="brand-logo center">mopidy-rfid</a>
-      <div id="status-badge" class="chip white-text" style="position: absolute; right: 20px; top: 10px;">
-        <i class="material-icons tiny">circle</i>
-        <span id="status-text">Connecting...</span>
-      </div>
     </div>
   </nav>
 
@@ -31,6 +28,12 @@
       <!-- Mappings Tab -->
       <div id="mappings-tab" class="col s12">
         <div style="padding-top:20px">
+          <div style="margin-bottom: 10px;">
+            <div id="status-badge" class="chip">
+              <i class="material-icons tiny">circle</i>
+              <span id="status-text">Connecting...</span>
+            </div>
+          </div>
           <table class="striped highlight">
             <thead>
               <tr>
