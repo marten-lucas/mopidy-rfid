@@ -17,7 +17,12 @@ class MappingsHandler(tornado.web.RequestHandler):
 
     async def get(self):
         try:
-            mappings = self.frontend.actor_ref.proxy().list_mappings().get()
+            if self.frontend is None:
+                logger.error("http: frontend not available")
+                self.set_status(503)
+                self.write({"error": "frontend not available"})
+                return
+            mappings = self.frontend.proxy().list_mappings().get()
             self.write(mappings)
         except Exception:
             logger.exception("http: list mappings failed")
@@ -26,12 +31,17 @@ class MappingsHandler(tornado.web.RequestHandler):
 
     async def post(self):
         try:
+            if self.frontend is None:
+                logger.error("http: frontend not available")
+                self.set_status(503)
+                self.write({"ok": False, "error": "frontend not available"})
+                return
             data = json.loads(self.request.body.decode("utf-8"))
             tag = str(data.get("tag", ""))
             uri = str(data.get("uri", ""))
             if not tag or not uri:
                 raise ValueError("missing tag or uri")
-            self.frontend.actor_ref.proxy().set_mapping(tag, uri).get()
+            self.frontend.proxy().set_mapping(tag, uri).get()
             self.write({"ok": True})
         except Exception:
             logger.exception("http: set mapping failed")
@@ -45,7 +55,12 @@ class MappingDeleteHandler(tornado.web.RequestHandler):
 
     async def delete(self, tag: str):
         try:
-            ok = self.frontend.actor_ref.proxy().delete_mapping(tag).get()
+            if self.frontend is None:
+                logger.error("http: frontend not available")
+                self.set_status(503)
+                self.write({"ok": False, "error": "frontend not available"})
+                return
+            ok = self.frontend.proxy().delete_mapping(tag).get()
             self.write({"ok": ok})
         except Exception:
             logger.exception("http: delete mapping failed")
