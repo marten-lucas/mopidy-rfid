@@ -107,19 +107,20 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 
 def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
     """Factory function called by Mopidy to register HTTP handlers."""
-    from . import frontend as frontend_module
-
     # Get the running frontend actor (Mopidy will have started it)
     frontend = None
     try:
-        # Try to find the actor by name (Mopidy typically names them)
         import pykka
         for actor_ref in pykka.ActorRegistry.get_all():
-            if isinstance(actor_ref.proxy(), frontend_module.RFIDFrontend):
+            # Check actor class name instead of isinstance
+            if actor_ref.actor_class.__name__ == 'RFIDFrontend':
                 frontend = actor_ref
+                logger.info("http: Found RFIDFrontend actor")
                 break
+        if not frontend:
+            logger.warning("http: RFIDFrontend actor not found in registry")
     except Exception:
-        logger.debug("Could not locate RFIDFrontend actor for HTTP handlers")
+        logger.exception("http: Could not locate RFIDFrontend actor")
 
     web_path = os.path.join(os.path.dirname(__file__), "web")
 
@@ -127,7 +128,7 @@ def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
         (r"/api/mappings", MappingsHandler, {"frontend": frontend}),
         (r"/api/mappings/(.*)", MappingDeleteHandler, {"frontend": frontend}),
         (r"/api/search", SearchHandler, {"core": core}),
-        (r"/ws", WSHandler),
+        (r"/ws", WSHandler, {}),
         (r"/(.*)", tornado.web.StaticFileHandler, {"path": web_path, "default_filename": "index.html"}),
     ]
 
