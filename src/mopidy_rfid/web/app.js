@@ -283,13 +283,14 @@ function resetModal() {
   document.getElementById('tag-input').value = '';
   document.getElementById('description-input').value = '';
   document.getElementById('type-select').value = '';
-  document.getElementById('search-query').value = '';
+  document.getElementById('filter-query').value = '';
   document.getElementById('selected-uri').value = '';
-  document.getElementById('search-results').innerHTML = '';
-  document.getElementById('search-field').style.display = 'none';
-  document.getElementById('results-container').style.display = 'none';
+  document.getElementById('items-list').innerHTML = '';
+  document.getElementById('items-container').style.display = 'none';
   document.getElementById('save-mapping').classList.add('disabled');
   document.getElementById('tag-input').setAttribute('disabled', 'disabled');
+  allItems = [];
+  filteredItems = [];
   M.updateTextFields();
   M.FormSelect.init(document.querySelectorAll('select'));
 }
