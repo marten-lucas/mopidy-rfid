@@ -81,36 +81,10 @@ class BrowseHandler(tornado.web.RequestHandler):
             items = []
             if self.core is not None:
                 try:
-                    # Browse Spotify library
-                    browse_result = self.core.library.browse(uri=None).get()
+                    logger.info(f"http: browsing for type: {item_type}")
                     
-                    if item_type == "track":
-                        # Get all tracks from all sources
-                        for ref in browse_result:
-                            if ref.type == "directory":
-                                # Browse into directory
-                                sub_result = self.core.library.browse(uri=ref.uri).get()
-                                for sub_ref in sub_result[:50]:  # Limit to 50 items
-                                    if sub_ref.type == "track":
-                                        items.append({
-                                            "uri": sub_ref.uri,
-                                            "name": sub_ref.name or "Unknown Track",
-                                            "type": "track"
-                                        })
-                    elif item_type == "album":
-                        # Get albums
-                        for ref in browse_result:
-                            if ref.type == "directory":
-                                sub_result = self.core.library.browse(uri=ref.uri).get()
-                                for sub_ref in sub_result[:50]:
-                                    if sub_ref.type == "album":
-                                        items.append({
-                                            "uri": sub_ref.uri,
-                                            "name": sub_ref.name or "Unknown Album",
-                                            "type": "album"
-                                        })
-                    elif item_type == "playlist":
-                        # Get playlists
+                    if item_type == "playlist":
+                        # Get playlists - most reliable
                         playlists_result = self.core.playlists.as_list().get()
                         for pl in playlists_result:
                             items.append({
@@ -118,6 +92,73 @@ class BrowseHandler(tornado.web.RequestHandler):
                                 "name": pl.name or "Unknown Playlist",
                                 "type": "playlist"
                             })
+                        logger.info(f"http: found {len(items)} playlists")
+                        
+                    elif item_type == "album":
+                        # Get albums by browsing all sources
+                        browse_result = self.core.library.browse(uri=None).get()
+                        for ref in browse_result:
+                            try:
+                                # Browse each source
+                                sub_result = self.core.library.browse(uri=ref.uri).get()
+                                for item in sub_result:
+                                    if item.type == "album":
+                                        items.append({
+                                            "uri": item.uri,
+                                            "name": item.name or "Unknown Album",
+                                            "type": "album"
+                                        })
+                                    # Also check directories for albums
+                                    elif item.type == "directory":
+                                        try:
+                                            deep_result = self.core.library.browse(uri=item.uri).get()
+                                            for deep_item in deep_result[:100]:
+                                                if deep_item.type == "album":
+                                                    items.append({
+                                                        "uri": deep_item.uri,
+                                                        "name": deep_item.name or "Unknown Album",
+                                                        "type": "album"
+                                                    })
+                                        except Exception:
+                                            pass
+                                    if len(items) >= 200:  # Limit to prevent timeout
+                                        break
+                            except Exception:
+                                continue
+                        logger.info(f"http: found {len(items)} albums")
+                        
+                    elif item_type == "track":
+                        # Get tracks by browsing
+                        browse_result = self.core.library.browse(uri=None).get()
+                        for ref in browse_result:
+                            try:
+                                sub_result = self.core.library.browse(uri=ref.uri).get()
+                                for item in sub_result:
+                                    if item.type == "track":
+                                        items.append({
+                                            "uri": item.uri,
+                                            "name": item.name or "Unknown Track",
+                                            "type": "track"
+                                        })
+                                    # Browse deeper for tracks
+                                    elif item.type in ("directory", "album"):
+                                        try:
+                                            deep_result = self.core.library.browse(uri=item.uri).get()
+                                            for deep_item in deep_result[:100]:
+                                                if deep_item.type == "track":
+                                                    items.append({
+                                                        "uri": deep_item.uri,
+                                                        "name": deep_item.name or "Unknown Track",
+                                                        "type": "track"
+                                                    })
+                                        except Exception:
+                                            pass
+                                    if len(items) >= 200:
+                                        break
+                            except Exception:
+                                continue
+                        logger.info(f"http: found {len(items)} tracks")
+                        
                 except Exception:
                     logger.exception("http: Mopidy library browse failed")
             
