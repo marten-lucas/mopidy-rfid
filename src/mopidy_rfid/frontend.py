@@ -107,22 +107,23 @@ class RFIDFrontend(_BaseClass):
 
     # --- Mapping helper methods (callable via actor proxy) ---
     def get_mapping(self, tag: str) -> Optional[str]:
-        uri = self._db.get(tag)
-        if uri:
-            return uri
+        mapping = self._db.get(tag)
+        if mapping:
+            return mapping.get("uri")
         return self._config_mappings.get(tag)
 
-    def set_mapping(self, tag: str, uri: str) -> None:
-        self._db.set(tag, uri)
+    def set_mapping(self, tag: str, uri: str, description: str = "") -> None:
+        self._db.set(tag, uri, description)
 
     def delete_mapping(self, tag: str) -> bool:
         return self._db.delete(tag)
 
-    def list_mappings(self) -> Dict[str, str]:
+    def list_mappings(self) -> Dict[str, Dict[str, str]]:
         out = self._db.list_all()
         # Merge config mappings where DB doesn't have them
         for k, v in self._config_mappings.items():
-            out.setdefault(k, v)
+            if k not in out:
+                out[k] = {"uri": v, "description": ""}
         return out
 
     # --- Tag handling ---
@@ -170,7 +171,7 @@ class RFIDFrontend(_BaseClass):
             # Broadcast event to Web UI clients via http module
             try:
                 from . import http
-                http.broadcast_event({"event": "tag_detected", "tag": tag_str})
+                http.broadcast_event({"event": "tag_scanned", "tag_id": tag_str, "uri": uri})
             except Exception:
                 logger.debug("Failed to broadcast tag event (http module not available)")
         except Exception:

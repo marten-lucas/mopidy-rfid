@@ -46,34 +46,40 @@ class MappingsDB:
                     """
                     CREATE TABLE IF NOT EXISTS mappings(
                         tag TEXT PRIMARY KEY,
-                        uri TEXT NOT NULL
+                        uri TEXT NOT NULL,
+                        description TEXT DEFAULT ''
                     )
                     """
                 )
+                # Migrate existing tables to add description column
+                try:
+                    conn.execute("ALTER TABLE mappings ADD COLUMN description TEXT DEFAULT ''")
+                except sqlite3.OperationalError:
+                    pass  # Column already exists
                 conn.commit()
             finally:
                 conn.close()
 
-    def get(self, tag: str) -> Optional[str]:
+    def get(self, tag: str) -> Optional[Dict[str, str]]:
         try:
             with self._lock:
                 conn = self._get_conn()
                 try:
-                    cur = conn.execute("SELECT uri FROM mappings WHERE tag = ?", (tag,))
+                    cur = conn.execute("SELECT uri, description FROM mappings WHERE tag = ?", (tag,))
                     row = cur.fetchone()
-                    return row[0] if row else None
+                    return {"uri": row[0], "description": row[1] if len(row) > 1 else ""} if row else None
                 finally:
                     conn.close()
         except Exception:
             logger.exception("MappingsDB: failed to get mapping for %s", tag)
             return None
 
-    def set(self, tag: str, uri: str) -> None:
+    def set(self, tag: str, uri: str, description: str = "") -> None:
         try:
             with self._lock:
                 conn = self._get_conn()
                 try:
-                    conn.execute("INSERT OR REPLACE INTO mappings(tag, uri) VALUES(?, ?)", (tag, uri))
+                    conn.execute("INSERT OR REPLACE INTO mappings(tag, uri, description) VALUES(?, ?, ?)", (tag, uri, description))
                     conn.commit()
                 finally:
                     conn.close()
@@ -94,13 +100,13 @@ class MappingsDB:
             logger.exception("MappingsDB: failed to delete mapping for %s", tag)
             return False
 
-    def list_all(self) -> Dict[str, str]:
+    def list_all(self) -> Dict[str, Dict[str, str]]:
         try:
             with self._lock:
                 conn = self._get_conn()
                 try:
-                    cur = conn.execute("SELECT tag, uri FROM mappings")
-                    return {row[0]: row[1] for row in cur.fetchall()}
+                    cur = conn.execute("SELECT tag, uri, description FROM mappings")
+                    return {row[0]: {"uri": row[1], "description": row[2] if len(row) > 2 else ""} for row in cur.fetchall()}
                 finally:
                     conn.close()
         except Exception:

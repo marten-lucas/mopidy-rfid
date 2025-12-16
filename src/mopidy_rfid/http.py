@@ -39,9 +39,12 @@ class MappingsHandler(tornado.web.RequestHandler):
             data = json.loads(self.request.body.decode("utf-8"))
             tag = str(data.get("tag", ""))
             uri = str(data.get("uri", ""))
+            description = str(data.get("description", ""))
             if not tag or not uri:
                 raise ValueError("missing tag or uri")
-            self.frontend.proxy().set_mapping(tag, uri).get()
+            self.frontend.proxy().set_mapping(tag, uri, description).get()
+            # Broadcast update to all connected clients
+            broadcast_event({"event": "mappings_updated"})
             self.write({"ok": True})
         except Exception:
             logger.exception("http: set mapping failed")
