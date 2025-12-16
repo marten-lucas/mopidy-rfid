@@ -87,10 +87,13 @@ class BrowseHandler(tornado.web.RequestHandler):
                         # Get playlists - most reliable
                         playlists_result = self.core.playlists.as_list().get()
                         for pl in playlists_result:
+                            # Extract source from URI (e.g., spotify:playlist:xxx -> spotify)
+                            source = pl.uri.split(':')[0] if ':' in pl.uri else 'unknown'
                             items.append({
                                 "uri": pl.uri,
                                 "name": pl.name or "Unknown Playlist",
-                                "type": "playlist"
+                                "type": "playlist",
+                                "source": source
                             })
                         logger.info(f"http: found {len(items)} playlists")
                         
@@ -103,10 +106,12 @@ class BrowseHandler(tornado.web.RequestHandler):
                                 sub_result = self.core.library.browse(uri=ref.uri).get()
                                 for item in sub_result:
                                     if item.type == "album":
+                                        source = item.uri.split(':')[0] if ':' in item.uri else 'unknown'
                                         items.append({
                                             "uri": item.uri,
                                             "name": item.name or "Unknown Album",
-                                            "type": "album"
+                                            "type": "album",
+                                            "source": source
                                         })
                                     # Also check directories for albums
                                     elif item.type == "directory":
@@ -114,10 +119,12 @@ class BrowseHandler(tornado.web.RequestHandler):
                                             deep_result = self.core.library.browse(uri=item.uri).get()
                                             for deep_item in deep_result[:100]:
                                                 if deep_item.type == "album":
+                                                    source = deep_item.uri.split(':')[0] if ':' in deep_item.uri else 'unknown'
                                                     items.append({
                                                         "uri": deep_item.uri,
                                                         "name": deep_item.name or "Unknown Album",
-                                                        "type": "album"
+                                                        "type": "album",
+                                                        "source": source
                                                     })
                                         except Exception:
                                             pass
@@ -135,10 +142,12 @@ class BrowseHandler(tornado.web.RequestHandler):
                                 sub_result = self.core.library.browse(uri=ref.uri).get()
                                 for item in sub_result:
                                     if item.type == "track":
+                                        source = item.uri.split(':')[0] if ':' in item.uri else 'unknown'
                                         items.append({
                                             "uri": item.uri,
                                             "name": item.name or "Unknown Track",
-                                            "type": "track"
+                                            "type": "track",
+                                            "source": source
                                         })
                                     # Browse deeper for tracks
                                     elif item.type in ("directory", "album"):
@@ -146,10 +155,12 @@ class BrowseHandler(tornado.web.RequestHandler):
                                             deep_result = self.core.library.browse(uri=item.uri).get()
                                             for deep_item in deep_result[:100]:
                                                 if deep_item.type == "track":
+                                                    source = deep_item.uri.split(':')[0] if ':' in deep_item.uri else 'unknown'
                                                     items.append({
                                                         "uri": deep_item.uri,
                                                         "name": deep_item.name or "Unknown Track",
-                                                        "type": "track"
+                                                        "type": "track",
+                                                        "source": source
                                                     })
                                         except Exception:
                                             pass

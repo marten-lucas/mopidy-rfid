@@ -197,7 +197,7 @@ function renderItems(items) {
   container.innerHTML = '';
   
   if (!items || items.length === 0) {
-    container.innerHTML = '<tr><td class="grey-text center-align">No items found</td></tr>';
+    container.innerHTML = '<tr><td colspan="2" class="grey-text center-align">No items found</td></tr>';
     return;
   }
   
@@ -205,10 +205,15 @@ function renderItems(items) {
     const tr = document.createElement('tr');
     tr.style.cursor = 'pointer';
     
-    const td = document.createElement('td');
-    td.textContent = item.name || item.uri;
+    const tdName = document.createElement('td');
+    tdName.textContent = item.name || item.uri;
     
-    tr.appendChild(td);
+    const tdSource = document.createElement('td');
+    tdSource.textContent = item.source || 'unknown';
+    tdSource.className = 'grey-text';
+    
+    tr.appendChild(tdName);
+    tr.appendChild(tdSource);
     
     tr.addEventListener('click', () => {
       document.getElementById('selected-uri').value = item.uri;
