@@ -1,74 +1,70 @@
 from __future__ import annotations
 
-import importlib
 import logging
-import pkgutil
-from typing import Any, Optional
 import pathlib
+from typing import Any
 
-from typing import TYPE_CHECKING
+from mopidy import config as mopidy_config
+from mopidy import ext
 
-logger = logging.getLogger("mopidy_rfid")
+logger = logging.getLogger(__name__)
 
-# Try importing Mopidy APIs, but provide safe fallbacks for static analysis / dev env
-try:
-    from mopidy import config as mopidy_config  # type: ignore
-    from mopidy import ext  # type: ignore
-except Exception:  # pragma: no cover - runtime environment may differ
-    mopidy_config = None  # type: ignore
-
-    class _ExtFallback:
-        class Extension:  # type: ignore
-            pass
-
-    ext = _ExtFallback()  # type: ignore
-
-
-class Extension(ext.Extension):  # type: ignore[name-defined]
+class Extension(ext.Extension):
     dist_name = "mopidy-rfid"
     ext_name = "rfid"
-    version = "0.0.0"
+    version = "0.1.0"
 
     def get_default_config(self) -> str:
-        # Load the bundled default config file (ext.conf) from the package resources
+        # Sicherer Pfad zur ext.conf
+        conf_file = pathlib.Path(__file__).parent / "ext.conf"
         try:
-            conf_file = pathlib.Path(__file__).parent / "ext.conf"
             return conf_file.read_text()
-        except Exception:
-            logger.exception("Failed to read default config for mopidy-rfid")
-        return ""
+        except FileNotFoundError:
+            logger.error(f"RFID extension: ext.conf not found at {conf_file}")
+            return ""
 
-    def get_config_schema(self) -> Any:
-        # Try to construct a Mopidy ConfigSchema if available, otherwise return a simple dict
-        if mopidy_config is not None:
-            schema = mopidy_config.ConfigSchema(self.ext_name)
-            # required 'enabled' flag for Mopidy extensions
-            schema["enabled"] = mopidy_config.Boolean(optional=True)
-            schema["pin_rst"] = mopidy_config.Integer(minimum=0, maximum=40, optional=True)
-            schema["pin_button_led"] = mopidy_config.Integer(minimum=0, maximum=40, optional=True)
-            schema["led_enabled"] = mopidy_config.Boolean(optional=True)
-            schema["led_pin"] = mopidy_config.Integer(minimum=0, maximum=40, optional=True)
-            schema["led_count"] = mopidy_config.Integer(minimum=1, optional=True)
-            schema["led_brightness"] = mopidy_config.Integer(minimum=0, maximum=255, optional=True)
-            schema["mappings_db_path"] = mopidy_config.Path(optional=True)
-            return schema
-        # Fallback for environments without Mopidy:
-        return {
-            "pin_rst": 25,
-            "pin_button_led": 13,
-            "led_enabled": True,
-            "led_pin": 12,
-            "led_count": 16,
-            "led_brightness": 60,
-            "mappings": {},
-        }
+    def get_config_schema(self) -> mopidy_config.ConfigSchema:
+        schema = mopidy_config.ConfigSchema(self.ext_name)
+        
+        # Standard Mopidy-Option
+        schema["enabled"] = mopidy_config.Boolean()
+        
+        # Hardware-Pins
+        schema["pin_rst"] = mopidy_config.Integer(minimum=0, maximum=40)
+        schema["pin_button_led"] = mopidy_config.Integer(minimum=0, maximum=40)
+        
+        # LED Einstellungen
+        schema["led_enabled"] = mopidy_config.Boolean()
+        schema["led_pin"] = mopidy_config.Integer(minimum=0, maximum=40)
+        schema["led_count"] = mopidy_config.Integer(minimum=1)
+        schema["led_brightness"] = mopidy_config.Integer(minimum=0, maximum=255)
+        
+        # Datenbank Pfad
+        schema["mappings_db_path"] = mopidy_config.Path(optional=True)
+        
+        return schema
 
-    def setup(self, registry: Any) -> None:  # pragma: no cover - runtime only
+    def setup(self, registry: Any) -> None:
+        # 1. Registrierung des Frontends (Hintergrund-Logik)
+        from .frontend import RFIDFrontend
+        registry.add("frontend", RFIDFrontend)
+
+        # 2. Registrierung der Web-API (Tornado App)
         try:
-            from .frontend import RFIDFrontend
             from .http import factory
-            registry.add("frontend", RFIDFrontend)
-            registry.add("http:app", {"name": "rfid", "factory": factory})
-            logger.info("mopidy-rfid extension setup complete")
-        except Exception:
-            logger.exception("Failed to register extension with Mopidy registry")
+            registry.add("http:app", {
+                "name": self.ext_name,
+                "factory": factory
+            })
+            logger.info("RFID extension: HTTP API factory registered")
+        except (ImportError, AttributeError):
+            logger.warning("RFID extension: HTTP factory not found, API disabled")
+
+        logger.info("RFID extension: Setup complete")
+
+    def get_bundle_dir(self) -> str:
+        # Das hier macht die Extension unter :6680/rfid/ sichtbar
+        bundle_dir = pathlib.Path(__file__).parent / "web"
+        if not bundle_dir.exists():
+            logger.warning(f"RFID extension: Web bundle directory not found at {bundle_dir}")
+        return str(bundle_dir)
