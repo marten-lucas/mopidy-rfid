@@ -4,7 +4,7 @@ let wsReconnectTimer = null;
 
 function connectWebSocket() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}/ws`;
+  const wsUrl = `${protocol}//${window.location.host}/rfid/ws`;
   
   ws = new WebSocket(wsUrl);
   
@@ -60,7 +60,7 @@ function handleWebSocketMessage(data) {
 
 // API calls
 function fetchMappings() {
-  fetch('/api/mappings')
+  fetch('/rfid/api/mappings')
     .then(r => r.json())
     .then(renderMappings)
     .catch(e => {
@@ -112,7 +112,7 @@ function renderMappings(map) {
 }
 
 function saveMapping(tag, uri) {
-  fetch('/api/mappings', {
+  fetch('/rfid/api/mappings', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({tag, uri})
@@ -132,7 +132,7 @@ function saveMapping(tag, uri) {
 }
 
 function deleteMapping(tag) {
-  fetch(`/api/mappings/${encodeURIComponent(tag)}`, {method: 'DELETE'})
+  fetch(`/rfid/api/mappings/${encodeURIComponent(tag)}`, {method: 'DELETE'})
     .then(r => {
       if (r.ok) {
         M.toast({html: 'Mapping deleted', classes: 'green'});
@@ -148,7 +148,7 @@ function deleteMapping(tag) {
 }
 
 function searchLibrary(query) {
-  fetch(`/api/library/search?q=${encodeURIComponent(query)}`)
+  fetch(`/rfid/api/search?q=${encodeURIComponent(query)}`)
     .then(r => r.json())
     .then(renderSearchResults)
     .catch(e => {
