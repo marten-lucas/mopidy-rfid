@@ -51,15 +51,14 @@ class Extension(ext.Extension):  # type: ignore[name-defined]
     def get_config_schema(self) -> Any:
         # Try to construct a Mopidy ConfigSchema if available, otherwise return a simple dict
         if mopidy_config is not None:
-            schema = mopidy_config.ConfigSchema()
-            schema["pin_rst"] = mopidy_config.Integer(minimum=0, maximum=40, default=25)
-            schema["pin_button_led"] = mopidy_config.Integer(minimum=0, maximum=40, default=13)
-            schema["led_enabled"] = mopidy_config.Boolean(default=True)
-            schema["led_pin"] = mopidy_config.Integer(minimum=0, maximum=40, default=12)
-            schema["led_count"] = mopidy_config.Integer(minimum=1, default=16)
-            schema["led_brightness"] = mopidy_config.Integer(minimum=0, maximum=255, default=60)
+            schema = mopidy_config.ConfigSchema(self.ext_name)
+            schema["pin_rst"] = mopidy_config.Integer(minimum=0, maximum=40, optional=True)
+            schema["pin_button_led"] = mopidy_config.Integer(minimum=0, maximum=40, optional=True)
+            schema["led_enabled"] = mopidy_config.Boolean(optional=True)
+            schema["led_pin"] = mopidy_config.Integer(minimum=0, maximum=40, optional=True)
+            schema["led_count"] = mopidy_config.Integer(minimum=1, optional=True)
+            schema["led_brightness"] = mopidy_config.Integer(minimum=0, maximum=255, optional=True)
             schema["mappings_db_path"] = mopidy_config.Path(optional=True)
-            schema["mappings"] = mopidy_config.Dict()
             return schema
         # Fallback for environments without Mopidy:
         return {

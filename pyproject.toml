@@ -2,7 +2,7 @@
 name = "mopidy-rfid"
 description = "Mopidy extension for using a rfid reader to start songs"
 readme = "README.md"
-requires-python = ">= 3.13"
+requires-python = ">= 3.10"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Marten Lucas", email = "marten.lucas@yahoo.de" }]
 classifiers = [
