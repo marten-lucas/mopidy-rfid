@@ -1,0 +1,8 @@
+_commit: v2.2.0
+_src_path: gh:mopidy/mopidy-ext-template
+author_email: marten.lucas@yahoo.de
+author_full_name: Marten Lucas
+dist_name: mopidy-rfid
+ext_name: rfid
+github_username: marten-lucas
+short_description: Mopidy extension for using a rfid reader to start songs
