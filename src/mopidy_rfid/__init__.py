@@ -29,29 +29,20 @@ class Extension(ext.Extension):  # type: ignore[name-defined]
     version = "0.0.0"
 
     def get_default_config(self) -> str:
-        """Return default configuration content for ext.conf.
-
-        If Mopidy's config reader isn't available (e.g., during local linting),
-        fall back to reading the packaged ext.conf manually.
-        """
-        if mopidy_config is not None:
-            try:
-                return mopidy_config.read(self.package)  # type: ignore[arg-type]
-            except Exception:
-                logger.exception("Failed to read default config via mopidy.config.read")
-        # Fallback: attempt to load ext.conf from package data
+        # Use the package name for reading the default config file
         try:
-            data = pkgutil.get_data(__name__, "ext.conf")
-            if data:
-                return data.decode("utf-8")
+            if mopidy_config is not None:
+                return mopidy_config.read(__package__)
         except Exception:
-            logger.exception("Failed to read packaged ext.conf")
+            logger.exception("Failed to read default config for mopidy-rfid")
         return ""
 
     def get_config_schema(self) -> Any:
         # Try to construct a Mopidy ConfigSchema if available, otherwise return a simple dict
         if mopidy_config is not None:
             schema = mopidy_config.ConfigSchema(self.ext_name)
+            # required 'enabled' flag for Mopidy extensions
+            schema["enabled"] = mopidy_config.Boolean(optional=True)
             schema["pin_rst"] = mopidy_config.Integer(minimum=0, maximum=40, optional=True)
             schema["pin_button_led"] = mopidy_config.Integer(minimum=0, maximum=40, optional=True)
             schema["led_enabled"] = mopidy_config.Boolean(optional=True)
