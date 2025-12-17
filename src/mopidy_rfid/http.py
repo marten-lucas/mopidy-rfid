@@ -10,6 +10,9 @@ import tornado.websocket
 
 logger = logging.getLogger("mopidy_rfid")
 
+# Store the HTTP server's IOLoop so we can safely broadcast from other threads
+_io_loop = None  # type: ignore
+
 
 class MappingsHandler(tornado.web.RequestHandler):
     def initialize(self, frontend: Any):
@@ -281,6 +284,15 @@ def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
     except Exception:
         logger.exception("http: Could not locate RFIDFrontend actor")
 
+    # Capture the current IOLoop for thread-safe broadcasts
+    try:
+        from tornado.ioloop import IOLoop
+        global _io_loop
+        _io_loop = IOLoop.current()
+        logger.info("http: Captured HTTP server IOLoop for broadcasts")
+    except Exception:
+        logger.exception("http: Failed to capture IOLoop")
+
     web_path = os.path.join(os.path.dirname(__file__), "web")
     static_path = os.path.join(web_path, "static")
 
@@ -299,12 +311,11 @@ def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
 def broadcast_event(obj: Any) -> None:
     """Helper to broadcast WebSocket events from frontend (thread-safe)."""
     try:
-        # Get the IOLoop from any active handler
-        from tornado.ioloop import IOLoop
-        io_loop = IOLoop.current(instance=False)
-        if io_loop:
-            io_loop.add_callback(WSHandler.broadcast, obj)
+        global _io_loop
+        if _io_loop is not None:
+            _io_loop.add_callback(WSHandler.broadcast, obj)
         else:
-            logger.warning("http: No IOLoop available for broadcast")
+            # Fallback (may fail from non-IOLoop threads)
+            WSHandler.broadcast(obj)
     except Exception:
         logger.exception("http: broadcast failed")
