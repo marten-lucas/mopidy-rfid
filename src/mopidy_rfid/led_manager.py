@@ -163,11 +163,26 @@ class LEDManager:
             strip.setPixelColor(i, col)
         strip.show()
 
+    def _apply_brightness(self):
+        try:
+            strip = self._get_strip()
+            if not strip:
+                return
+            b = getattr(self, 'brightness', None) or getattr(self, '_brightness', None)
+            if b is not None:
+                try:
+                    strip.setBrightness(int(b))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     def welcome_scan(self, color=(0, 255, 0), delay=0.05):
         strip = self._get_strip()
         count = self._get_count()
         if not strip:
             return
+        self._apply_brightness()
         try:
             self._off(strip, count)
             time.sleep(0.1)
@@ -184,6 +199,7 @@ class LEDManager:
         count = self._get_count()
         if not strip:
             return
+        self._apply_brightness()
         try:
             self._fill(strip, count, color)
             time.sleep(0.1)
@@ -201,6 +217,7 @@ class LEDManager:
         count = self._get_count()
         if not strip:
             return
+        self._apply_brightness()
         try:
             remain_ratio = max(0.0, min(1.0, remain_ratio))
             remain_leds = int(round(count * remain_ratio))
