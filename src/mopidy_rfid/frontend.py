@@ -230,56 +230,58 @@ class RFIDFrontend(_BaseClass):
         """
         tag_str = str(tag_id)
         logger.info("RFIDFrontend: tag detected: %s", tag_str)
+        
+        # Determine mapping first to decide confirmation behavior
+        mapped_uri = self.get_mapping(tag_str)
+        
         # LED detected confirm
         try:
             if self._led:
                 self._led.flash_confirm()
         except Exception:
             logger.exception("LED flash failed")
+        
         # Remaining track animation hook (optional)
         try:
             if self._led and self._led_cfg.get("remaining"):
-                # Simple example: light proportion of LEDs based on playback position when playing
                 state = self.core.playback.get_state().get() if self.core else None
                 if state == "playing":
-                    # Implementation would require querying time position and length, omitted for brevity
                     pass
         except Exception:
             logger.exception("LED remaining animation hook failed")
-        # Play detected sound (confirmation)
+        
+        # Play detected sound (confirmation) only when no mapping exists to avoid playback race
         try:
-            uri_det = self._sounds.get("detected")
-            if uri_det and self.core is not None:
-                logger.info("RFIDFrontend: playing detected sound: %s", uri_det)
-                # Play detected confirmation quickly without clearing user's tracklist persistently
-                self.core.tracklist.clear().get()
-                self.core.tracklist.add(uris=[uri_det]).get()
-                self.core.playback.play().get()
+            if not mapped_uri:
+                uri_det = self._sounds.get("detected")
+                if uri_det and self.core is not None:
+                    logger.info("RFIDFrontend: playing detected sound: %s", uri_det)
+                    self.core.tracklist.clear().get()
+                    self.core.tracklist.add(uris=[uri_det]).get()
+                    self.core.playback.play().get()
         except Exception:
             logger.exception("RFIDFrontend: failed to play detected sound")
 
-        # ALWAYS broadcast tag event to Web UI (even if no mapping exists)
-        # Use a separate thread to avoid event loop issues
+        # Broadcast tag event to Web UI
         def _broadcast():
             try:
                 from . import http
-                uri = self.get_mapping(tag_str)
-                http.broadcast_event({"event": "tag_scanned", "tag_id": tag_str, "uri": uri or ""})
+                http.broadcast_event({"event": "tag_scanned", "tag_id": tag_str, "uri": mapped_uri or ""})
                 logger.info("RFIDFrontend: broadcasted tag_scanned event for tag %s", tag_str)
             except Exception:
                 logger.exception("Failed to broadcast tag event")
-        
         threading.Thread(target=_broadcast, daemon=True).start()
 
-        uri = self.get_mapping(tag_str)
+        # Execute mapping if present
+        uri = mapped_uri
         if not uri:
             logger.warning("No mapping found for tag %s", tag_str)
             return
-
+        
         if self.core is None:
             logger.warning("Core not available; cannot execute mapping for %s", tag_str)
             return
-
+        
         try:
             if uri == "TOGGLE_PLAY":
                 if self.core.playback.get_state().get() == "playing":
