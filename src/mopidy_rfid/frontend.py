@@ -51,6 +51,8 @@ class RFIDFrontend(_BaseClass):
         self._led_cfg = LedConfig(self._config.get("led_config_path"))
         # Load config mappings as fallback/defaults
         self._config_mappings: Dict[str, str] = self._config.get("mappings", {}) or {}
+        self._progress_thread: Optional[threading.Thread] = None
+        self._progress_stop = threading.Event()
 
     def on_start(self) -> None:
         """Called by Mopidy when actor starts. Must return quickly."""
@@ -71,9 +73,15 @@ class RFIDFrontend(_BaseClass):
         # LED welcome animation if enabled
         try:
             if self._led and self._led_cfg.get("welcome"):
-                self._led.show_ready()
+                # Prefer animated welcome
+                try:
+                    self._led.welcome_scan(color=(0,255,0), delay=0.05)
+                except Exception:
+                    self._led.show_ready()
         except Exception:
             logger.exception("RFIDFrontend: LED welcome animation failed")
+        # Start remaining progress updater
+        self._start_progress_updater()
 
     def _init_hardware(self) -> None:
         """Initialize hardware in background thread."""
@@ -128,9 +136,14 @@ class RFIDFrontend(_BaseClass):
         # LED farewell animation if enabled
         try:
             if self._led and self._led_cfg.get("farewell"):
-                self._led.flash_confirm()
+                try:
+                    self._led.farewell_scan(color=(0,255,0), delay=0.05)
+                except Exception:
+                    self._led.flash_confirm()
         except Exception:
             logger.exception("RFIDFrontend: LED farewell animation failed")
+        # Stop remaining progress updater
+        self._stop_progress_updater()
         # Allow farewell sound to play before shutdown to avoid SEGV in teardown
         try:
             time.sleep(3)
@@ -146,6 +159,44 @@ class RFIDFrontend(_BaseClass):
                 self._led.shutdown()
             except Exception:
                 logger.exception("Error shutting down LED manager")
+
+    def _start_progress_updater(self) -> None:
+        if self._progress_thread and self._progress_thread.is_alive():
+            return
+        self._progress_stop.clear()
+        def _run():
+            while not self._progress_stop.is_set():
+                try:
+                    if self._led and self._led_cfg.get("remaining") and self.core is not None:
+                        state = self.core.playback.get_state().get()
+                        if state == "playing":
+                            tl = self.core.tracklist.get_tracks().get()
+                            cp = self.core.playback.get_current_tl_track().get()
+                            pos_ms = self.core.playback.get_time_position().get()
+                            length_ms = None
+                            try:
+                                if cp and cp.track and cp.track.length:
+                                    length_ms = int(cp.track.length)
+                            except Exception:
+                                length_ms = None
+                            if length_ms and length_ms > 0:
+                                remain_ratio = max(0.0, min(1.0, 1.0 - (pos_ms/float(length_ms))))
+                                try:
+                                    self._led.remaining_progress(remain_ratio, color=(255,255,255))
+                                except Exception:
+                                    pass
+                    time.sleep(0.2)
+                except Exception:
+                    time.sleep(0.5)
+        self._progress_thread = threading.Thread(target=_run, name="led-progress", daemon=True)
+        self._progress_thread.start()
+
+    def _stop_progress_updater(self) -> None:
+        try:
+            self._progress_stop.set()
+        except Exception:
+            pass
+        # thread will end shortly
 
     # --- Mapping helper methods (callable via actor proxy) ---
     def get_mapping(self, tag: str) -> Optional[str]:

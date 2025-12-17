@@ -136,3 +136,94 @@ class LEDManager:
                     logger.exception("LED: GPIO cleanup failed")
         except Exception:
             logger.exception("LED: unexpected error during shutdown")
+
+    def _get_strip(self):
+        return getattr(self, '_strip', None) or getattr(self, 'strip', None)
+
+    def _get_count(self):
+        return getattr(self, 'led_count', None) or getattr(self, '_count', None) or 16
+
+    def _color(self, rgb):
+        try:
+            from rpi_ws281x import Color
+            r, g, b = rgb
+            return Color(r, g, b)
+        except Exception:
+            return 0
+
+    def _fill(self, strip, count, rgb):
+        col = self._color(rgb)
+        for i in range(count):
+            strip.setPixelColor(i, col)
+        strip.show()
+
+    def _off(self, strip, count):
+        col = self._color((0, 0, 0))
+        for i in range(count):
+            strip.setPixelColor(i, col)
+        strip.show()
+
+    def welcome_scan(self, color=(0, 255, 0), delay=0.05):
+        strip = self._get_strip()
+        count = self._get_count()
+        if not strip:
+            return
+        try:
+            self._off(strip, count)
+            time.sleep(0.1)
+            for i in range(count):
+                for j in range(count):
+                    strip.setPixelColor(j, self._color(color) if j <= i else self._color((0, 0, 0)))
+                strip.show()
+                time.sleep(delay)
+        except Exception:
+            pass
+
+    def farewell_scan(self, color=(0, 255, 0), delay=0.05):
+        strip = self._get_strip()
+        count = self._get_count()
+        if not strip:
+            return
+        try:
+            self._fill(strip, count, color)
+            time.sleep(0.1)
+            for i in range(count - 1, -1, -1):
+                for j in range(count):
+                    strip.setPixelColor(j, self._color(color) if j < i else self._color((0, 0, 0)))
+                strip.show()
+                time.sleep(delay)
+            self._off(strip, count)
+        except Exception:
+            pass
+
+    def remaining_progress(self, remain_ratio: float, color=(255, 255, 255)):
+        strip = self._get_strip()
+        count = self._get_count()
+        if not strip:
+            return
+        try:
+            remain_ratio = max(0.0, min(1.0, remain_ratio))
+            remain_leds = int(round(count * remain_ratio))
+            for i in range(count):
+                strip.setPixelColor(i, self._color(color) if i < remain_leds else self._color((0, 0, 0)))
+            strip.show()
+        except Exception:
+            pass
+
+    # helpers
+    def _set_upto(self, idx: int, color):
+        for j in range(self.led_count):
+            if j <= idx:
+                self.strip.setPixelColor(j, self._color_tuple(color))
+            else:
+                self.strip.setPixelColor(j, self._color_tuple((0,0,0)))
+        self.strip.show()
+
+    def _color_tuple(self, rgb):
+        # Convert (r,g,b) to library color; assume strip.Color exists
+        try:
+            from rpi_ws281x import Color
+            r,g,b = rgb
+            return Color(r, g, b)
+        except Exception:
+            return 0
