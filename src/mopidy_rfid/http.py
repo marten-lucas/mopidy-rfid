@@ -10,6 +10,7 @@ import tornado.web
 import tornado.websocket
 
 from .sounds_config import SoundsConfig
+from .led_config import LedConfig
 
 logger = logging.getLogger("mopidy_rfid")
 
@@ -308,6 +309,35 @@ class SoundsHandler(tornado.web.RequestHandler):
             self.write({"ok": False})
 
 
+class LedSettingsHandler(tornado.web.RequestHandler):
+    def initialize(self):
+        self.led_cfg = LedConfig()
+
+    async def get(self):
+        try:
+            self.write(self.led_cfg.get_all())
+        except Exception:
+            logger.exception("http: get led settings failed")
+            self.set_status(500)
+            self.write({})
+
+    async def post(self):
+        try:
+            data = json.loads(self.request.body.decode("utf-8"))
+            key = str(data.get("key", ""))
+            value = bool(data.get("value", False))
+            if key not in ("welcome", "farewell", "remaining"):
+                self.set_status(400)
+                self.write({"ok": False, "error": "invalid key"})
+                return
+            self.led_cfg.set(key, value)
+            self.write({"ok": True})
+        except Exception:
+            logger.exception("http: set led settings failed")
+            self.set_status(400)
+            self.write({"ok": False})
+
+
 def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
     """Factory function called by Mopidy to register HTTP handlers."""
     # Get the running frontend actor (Mopidy will have started it)
@@ -344,6 +374,7 @@ def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
         (r"/api/browse", BrowseHandler, {"core": core}),
         (r"/api/last-scan", LastScanHandler, {}),
         (r"/api/sounds", SoundsHandler, {"config": config, "core": core}),
+        (r"/api/led-settings", LedSettingsHandler, {}),
         (r"/ws", WSHandler, {}),
         (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": static_path}),
         (r"/(favicon\\.ico)", tornado.web.StaticFileHandler, {"path": static_path}),

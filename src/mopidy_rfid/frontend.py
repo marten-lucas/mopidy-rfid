@@ -23,6 +23,7 @@ from .rfid_manager import RFIDManager
 from .led_manager import LEDManager
 from .mappings_db import MappingsDB
 from .sounds_config import SoundsConfig
+from .led_config import LedConfig
 
 logger = logging.getLogger("mopidy_rfid")
 
@@ -46,6 +47,7 @@ class RFIDFrontend(_BaseClass):
         self._led: Optional[LEDManager] = None
         self._db = MappingsDB(self._config.get("mappings_db_path"))
         self._sounds = SoundsConfig(self._config.get("sounds_config_path"))
+        self._led_cfg = LedConfig(self._config.get("led_config_path"))
         # Load config mappings as fallback/defaults
         self._config_mappings: Dict[str, str] = self._config.get("mappings", {}) or {}
 
@@ -65,6 +67,12 @@ class RFIDFrontend(_BaseClass):
                 self.core.playback.play().get()
         except Exception:
             logger.exception("RFIDFrontend: failed to play welcome sound")
+        # LED welcome animation if enabled
+        try:
+            if self._led and self._led_cfg.get("welcome"):
+                self._led.show_ready()
+        except Exception:
+            logger.exception("RFIDFrontend: LED welcome animation failed")
 
     def _init_hardware(self) -> None:
         """Initialize hardware in background thread."""
@@ -116,6 +124,12 @@ class RFIDFrontend(_BaseClass):
                 self.core.playback.play().get()
         except Exception:
             logger.exception("RFIDFrontend: failed to play farewell sound")
+        # LED farewell animation if enabled
+        try:
+            if self._led and self._led_cfg.get("farewell"):
+                self._led.flash_confirm()
+        except Exception:
+            logger.exception("RFIDFrontend: LED farewell animation failed")
         if self._rfid:
             try:
                 self._rfid.stop()
@@ -159,12 +173,22 @@ class RFIDFrontend(_BaseClass):
         """
         tag_str = str(tag_id)
         logger.info("RFIDFrontend: tag detected: %s", tag_str)
-        # Flash LED as confirmation
-        if self._led:
-            try:
+        # LED detected confirm
+        try:
+            if self._led:
                 self._led.flash_confirm()
-            except Exception:
-                logger.exception("LED flash failed")
+        except Exception:
+            logger.exception("LED flash failed")
+        # Remaining track animation hook (optional)
+        try:
+            if self._led and self._led_cfg.get("remaining"):
+                # Simple example: light proportion of LEDs based on playback position when playing
+                state = self.core.playback.get_state().get() if self.core else None
+                if state == "playing":
+                    # Implementation would require querying time position and length, omitted for brevity
+                    pass
+        except Exception:
+            logger.exception("LED remaining animation hook failed")
         # Play detected sound (confirmation)
         try:
             uri_det = self._sounds.get("detected")

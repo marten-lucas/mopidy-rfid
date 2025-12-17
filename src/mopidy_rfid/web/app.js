@@ -465,6 +465,26 @@ function loadSoundsItems(type) {
   });
 }
 
+// LED settings
+function loadLedSettings() {
+  fetch('/rfid/api/led-settings').then(r=>r.json()).then(data=>{
+    document.getElementById('led-welcome').checked = !!data.welcome;
+    document.getElementById('led-farewell').checked = !!data.farewell;
+    document.getElementById('led-remaining').checked = !!data.remaining;
+  }).catch(()=>{});
+}
+
+function saveLedSettings() {
+  const pairs = [
+    {key:'welcome', value: document.getElementById('led-welcome').checked},
+    {key:'farewell', value: document.getElementById('led-farewell').checked},
+    {key:'remaining', value: document.getElementById('led-remaining').checked},
+  ];
+  Promise.all(pairs.map(p=> fetch('/rfid/api/led-settings', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(p)})))
+    .then(()=> M.toast({html:'LED settings saved', classes:'green'}))
+    .catch(()=> M.toast({html:'Save failed', classes:'red'}));
+}
+
 // Init
 document.addEventListener('DOMContentLoaded', () => {
   // Init Materialize components
@@ -572,6 +592,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-sel-farewell').addEventListener('click', ()=>openSoundsModal('farewell'));
   document.getElementById('btn-sel-detected').addEventListener('click', ()=>openSoundsModal('detected'));
   document.getElementById('sounds-type-select').addEventListener('change', (e)=> loadSoundsItems(e.target.value));
+  
+  // LED settings
+  loadLedSettings();
+  document.getElementById('led-save').addEventListener('click', saveLedSettings);
   
   // Initial load
   fetchMappings();
