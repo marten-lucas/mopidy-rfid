@@ -221,47 +221,53 @@ class RFIDFrontend(_BaseClass):
 
     # --- Tag handling ---
     def _play_detect_then_execute(self, mapped_uri: str) -> None:
-        """Play the configured detected sound first, then execute mapped action.
-        Uses playback polling to avoid overlapping play commands."""
+        """Queue detected sound first, then mapped content, and start playback once."""
+        if self.core is None:
+            logger.warning("Core not available; cannot execute mapping")
+            return
         try:
             uri_det = self._sounds.get("detected")
-            if not uri_det or self.core is None:
-                # No detected sound; execute immediately
-                self._execute_mapping(mapped_uri)
-                return
-            # Play detected sound
-            logger.info("RFIDFrontend: playing detected sound before action: %s", uri_det)
-            self.core.tracklist.clear().get()
-            self.core.tracklist.add(uris=[uri_det]).get()
-            self.core.playback.play().get()
-            # Wait until detected finishes or timeout
-            timeout_s = 5.0
-            start = time.time()
-            length_ms = None
-            try:
-                cp = self.core.playback.get_current_tl_track().get()
-                if cp and cp.track and cp.track.length:
-                    length_ms = int(cp.track.length)
-            except Exception:
-                length_ms = None
-            while time.time() - start < timeout_s:
-                try:
-                    state = self.core.playback.get_state().get()
-                    pos = self.core.playback.get_time_position().get()
-                    if state != "playing":
-                        break
-                    if length_ms and pos >= max(0, length_ms - 200):  # near end
-                        break
-                except Exception:
-                    break
-                time.sleep(0.2)
         except Exception:
-            logger.exception("RFIDFrontend: detected pre-play failed")
-        # Execute mapped action now
+            uri_det = ""
         try:
-            self._execute_mapping(mapped_uri)
+            self.core.tracklist.clear().get()
+            # Add detected sound first if configured
+            if uri_det:
+                logger.info("RFIDFrontend: queue detected sound: %s", uri_det)
+                self.core.tracklist.add(uris=[uri_det]).get()
+            # Add mapped content
+            logger.info("RFIDFrontend: queue mapped content: %s", mapped_uri)
+            if mapped_uri == "TOGGLE_PLAY":
+                # If toggle requested, just play current queue (detected only)
+                self.core.playback.play().get()
+                return
+            if mapped_uri == "STOP":
+                # Detected then stop after it ends; just start playback of detected
+                self.core.playback.play().get()
+                return
+            # Expand albums/playlists
+            if mapped_uri.startswith('spotify:album:') or ':album:' in mapped_uri:
+                lookup_result = self.core.library.lookup(uris=[mapped_uri]).get()
+                tracks = lookup_result.get(mapped_uri) if lookup_result else None
+                if tracks:
+                    for track in tracks:
+                        self.core.tracklist.add(uris=[track.uri]).get()
+                else:
+                    self.core.tracklist.add(uris=[mapped_uri]).get()
+            elif mapped_uri.startswith('spotify:playlist:') or ':playlist:' in mapped_uri:
+                lookup_result = self.core.library.lookup(uris=[mapped_uri]).get()
+                tracks = lookup_result.get(mapped_uri) if lookup_result else None
+                if tracks:
+                    for track in tracks:
+                        self.core.tracklist.add(uris=[track.uri]).get()
+                else:
+                    self.core.tracklist.add(uris=[mapped_uri]).get()
+            else:
+                self.core.tracklist.add(uris=[mapped_uri]).get()
+            # Start playback once; Mopidy will play detected then continue to mapped
+            self.core.playback.play().get()
         except Exception:
-            logger.exception("RFIDFrontend: execute mapping after detected failed")
+            logger.exception("RFIDFrontend: queue detected+mapped failed")
 
     def _execute_mapping(self, uri: str) -> None:
         """Execute a mapping URI: handle special commands and URI types."""
