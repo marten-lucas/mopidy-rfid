@@ -145,13 +145,17 @@ class RFIDFrontend(_BaseClass):
                 logger.exception("LED flash failed")
 
         # ALWAYS broadcast tag event to Web UI (even if no mapping exists)
-        try:
-            from . import http
-            uri = self.get_mapping(tag_str)
-            http.broadcast_event({"event": "tag_scanned", "tag_id": tag_str, "uri": uri or ""})
-            logger.info("RFIDFrontend: broadcasted tag_scanned event for tag %s", tag_str)
-        except Exception:
-            logger.exception("Failed to broadcast tag event")
+        # Use a separate thread to avoid event loop issues
+        def _broadcast():
+            try:
+                from . import http
+                uri = self.get_mapping(tag_str)
+                http.broadcast_event({"event": "tag_scanned", "tag_id": tag_str, "uri": uri or ""})
+                logger.info("RFIDFrontend: broadcasted tag_scanned event for tag %s", tag_str)
+            except Exception:
+                logger.exception("Failed to broadcast tag event")
+        
+        threading.Thread(target=_broadcast, daemon=True).start()
 
         uri = self.get_mapping(tag_str)
         if not uri:

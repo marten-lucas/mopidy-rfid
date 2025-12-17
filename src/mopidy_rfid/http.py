@@ -297,8 +297,14 @@ def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
 
 
 def broadcast_event(obj: Any) -> None:
-    """Helper to broadcast WebSocket events from frontend."""
+    """Helper to broadcast WebSocket events from frontend (thread-safe)."""
     try:
-        WSHandler.broadcast(obj)
+        # Get the IOLoop from any active handler
+        from tornado.ioloop import IOLoop
+        io_loop = IOLoop.current(instance=False)
+        if io_loop:
+            io_loop.add_callback(WSHandler.broadcast, obj)
+        else:
+            logger.warning("http: No IOLoop available for broadcast")
     except Exception:
         logger.exception("http: broadcast failed")
