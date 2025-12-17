@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from typing import Any
 
 import tornado.web
@@ -12,6 +13,8 @@ logger = logging.getLogger("mopidy_rfid")
 
 # Store the HTTP server's IOLoop so we can safely broadcast from other threads
 _io_loop = None  # type: ignore
+
+LAST_SCAN: dict[str, Any] | None = None
 
 
 class MappingsHandler(tornado.web.RequestHandler):
@@ -267,6 +270,12 @@ class WSHandler(tornado.websocket.WebSocketHandler):
                 logger.exception("websocket: failed to write message")
 
 
+class LastScanHandler(tornado.web.RequestHandler):
+    async def get(self):
+        global LAST_SCAN
+        self.write(LAST_SCAN or {})
+
+
 def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
     """Factory function called by Mopidy to register HTTP handlers."""
     # Get the running frontend actor (Mopidy will have started it)
@@ -301,6 +310,7 @@ def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
         (r"/api/mappings/(.*)", MappingDeleteHandler, {"frontend": frontend}),
         (r"/api/search", SearchHandler, {"core": core}),
         (r"/api/browse", BrowseHandler, {"core": core}),
+        (r"/api/last-scan", LastScanHandler, {}),
         (r"/ws", WSHandler, {}),
         (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": static_path}),
         (r"/(favicon\.ico)", tornado.web.StaticFileHandler, {"path": static_path}),
@@ -311,11 +321,13 @@ def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
 def broadcast_event(obj: Any) -> None:
     """Helper to broadcast WebSocket events from frontend (thread-safe)."""
     try:
-        global _io_loop
+        global _io_loop, LAST_SCAN
+        # Store last scan if applicable
+        if isinstance(obj, dict) and obj.get("event") == "tag_scanned":
+            LAST_SCAN = {"tag_id": obj.get("tag_id"), "ts": time.time(), "uri": obj.get("uri", "")}
         if _io_loop is not None:
             _io_loop.add_callback(WSHandler.broadcast, obj)
         else:
-            # Fallback (may fail from non-IOLoop threads)
             WSHandler.broadcast(obj)
     except Exception:
         logger.exception("http: broadcast failed")

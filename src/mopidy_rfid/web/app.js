@@ -3,6 +3,7 @@ let ws = null;
 let wsReconnectTimer = null;
 let waitingForScan = false;
 let searchTimeout = null;
+let scanPollTimer = null;
 
 // WebSocket connection
 function connectWebSocket() {
@@ -282,6 +283,7 @@ function openAddModal() {
   document.getElementById('modal-title').textContent = 'Add Mapping';
   document.getElementById('tag-helper').textContent = 'Please scan a tag to continue';
   waitingForScan = true;
+  startScanPolling();
   M.Modal.getInstance(document.getElementById('mapping-modal')).open();
 }
 
@@ -338,11 +340,34 @@ function resetModal() {
   M.FormSelect.init(document.querySelectorAll('select'));
 }
 
+function startScanPolling() {
+  stopScanPolling();
+  scanPollTimer = setInterval(() => {
+    if (!waitingForScan) return;
+    fetch('/rfid/api/last-scan')
+      .then(r => r.json())
+      .then(data => {
+        if (data && data.tag_id) {
+          handleScannedTag(String(data.tag_id));
+        }
+      })
+      .catch(() => {});
+  }, 1000);
+}
+
+function stopScanPolling() {
+  if (scanPollTimer) {
+    clearInterval(scanPollTimer);
+    scanPollTimer = null;
+  }
+}
+
 function handleScannedTag(tagId) {
   document.getElementById('tag-input').value = tagId;
   document.getElementById('tag-input').removeAttribute('disabled');
   document.getElementById('tag-helper').textContent = 'Tag scanned successfully';
   waitingForScan = false;
+  stopScanPolling();
   M.updateTextFields();
   M.toast({html: `Tag ${tagId} scanned`, classes: 'green'});
   
@@ -400,7 +425,13 @@ function updateSettings(mappings) {
 // Init
 document.addEventListener('DOMContentLoaded', () => {
   // Init Materialize components
-  M.Modal.init(document.querySelectorAll('.modal'));
+  const modalElems = document.querySelectorAll('.modal');
+  M.Modal.init(modalElems, {
+    onCloseEnd: () => {
+      waitingForScan = false;
+      stopScanPolling();
+    }
+  });
   M.FormSelect.init(document.querySelectorAll('select'));
   const tabs = M.Tabs.init(document.querySelectorAll('.tabs'), {
     onShow: (tab) => {
