@@ -220,6 +220,92 @@ class RFIDFrontend(_BaseClass):
         return out
 
     # --- Tag handling ---
+    def _play_detect_then_execute(self, mapped_uri: str) -> None:
+        """Play the configured detected sound first, then execute mapped action.
+        Uses playback polling to avoid overlapping play commands."""
+        try:
+            uri_det = self._sounds.get("detected")
+            if not uri_det or self.core is None:
+                # No detected sound; execute immediately
+                self._execute_mapping(mapped_uri)
+                return
+            # Play detected sound
+            logger.info("RFIDFrontend: playing detected sound before action: %s", uri_det)
+            self.core.tracklist.clear().get()
+            self.core.tracklist.add(uris=[uri_det]).get()
+            self.core.playback.play().get()
+            # Wait until detected finishes or timeout
+            timeout_s = 5.0
+            start = time.time()
+            length_ms = None
+            try:
+                cp = self.core.playback.get_current_tl_track().get()
+                if cp and cp.track and cp.track.length:
+                    length_ms = int(cp.track.length)
+            except Exception:
+                length_ms = None
+            while time.time() - start < timeout_s:
+                try:
+                    state = self.core.playback.get_state().get()
+                    pos = self.core.playback.get_time_position().get()
+                    if state != "playing":
+                        break
+                    if length_ms and pos >= max(0, length_ms - 200):  # near end
+                        break
+                except Exception:
+                    break
+                time.sleep(0.2)
+        except Exception:
+            logger.exception("RFIDFrontend: detected pre-play failed")
+        # Execute mapped action now
+        try:
+            self._execute_mapping(mapped_uri)
+        except Exception:
+            logger.exception("RFIDFrontend: execute mapping after detected failed")
+
+    def _execute_mapping(self, uri: str) -> None:
+        """Execute a mapping URI: handle special commands and URI types."""
+        if self.core is None:
+            logger.warning("Core not available; cannot execute mapping")
+            return
+        if uri == "TOGGLE_PLAY":
+            if self.core.playback.get_state().get() == "playing":
+                self.core.playback.pause().get()
+            else:
+                self.core.playback.play().get()
+            return
+        if uri == "STOP":
+            self.core.playback.stop().get()
+            return
+        logger.info("RFIDFrontend: adding URI to tracklist: %s", uri)
+        self.core.tracklist.clear().get()
+        # Handle albums/playlists vs tracks
+        if uri.startswith('spotify:album:') or ':album:' in uri:
+            lookup_result = self.core.library.lookup(uris=[uri]).get()
+            if lookup_result and uri in lookup_result:
+                tracks = lookup_result[uri]
+                if tracks:
+                    for track in tracks:
+                        self.core.tracklist.add(uris=[track.uri]).get()
+                else:
+                    logger.warning("Album has no tracks: %s", uri)
+            else:
+                self.core.tracklist.add(uris=[uri]).get()
+        elif uri.startswith('spotify:playlist:') or ':playlist:' in uri:
+            lookup_result = self.core.library.lookup(uris=[uri]).get()
+            if lookup_result and uri in lookup_result:
+                tracks = lookup_result[uri]
+                if tracks:
+                    for track in tracks:
+                        self.core.tracklist.add(uris=[track.uri]).get()
+                else:
+                    logger.warning("Playlist has no tracks: %s", uri)
+            else:
+                self.core.tracklist.add(uris=[uri]).get()
+        else:
+            self.core.tracklist.add(uris=[uri]).get()
+        self.core.playback.play().get()
+
     def _on_tag_detected(self, tag_id: int) -> None:
         """Handle tag detection: map tag -> URI or special commands.
 

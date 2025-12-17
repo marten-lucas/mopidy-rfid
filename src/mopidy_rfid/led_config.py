@@ -13,7 +13,7 @@ class LedConfig:
         self._data: Dict[str, bool] = {
             "welcome": True,
             "farewell": True,
-            "remaining": False,
+            "remaining": True,
         }
         self._load()
 
