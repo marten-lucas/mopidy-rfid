@@ -97,6 +97,53 @@
               </div>
             </div>
           </div>
+          
+          <h5>Sounds</h5>
+          <table class="striped">
+            <thead><tr><th>Event</th><th>URI</th><th></th></tr></thead>
+            <tbody>
+              <tr>
+                <td>Welcome</td>
+                <td><code id="sound-welcome-uri">-</code></td>
+                <td><a class="btn-small" data-sound-key="welcome" id="btn-sel-welcome">Select</a></td>
+              </tr>
+              <tr>
+                <td>Farewell</td>
+                <td><code id="sound-farewell-uri">-</code></td>
+                <td><a class="btn-small" data-sound-key="farewell" id="btn-sel-farewell">Select</a></td>
+              </tr>
+              <tr>
+                <td>Detected</td>
+                <td><code id="sound-detected-uri">-</code></td>
+                <td><a class="btn-small" data-sound-key="detected" id="btn-sel-detected">Select</a></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sounds Selector Modal -->
+      <div id="sounds-modal" class="modal modal-fixed-footer">
+        <div class="modal-content">
+          <h4>Select Sound</h4>
+          <div class="input-field">
+            <select id="sounds-type-select">
+              <option value="track" selected>Track</option>
+              <option value="album">Album</option>
+              <option value="playlist">Playlist</option>
+            </select>
+            <label>Type</label>
+          </div>
+          <div id="sounds-items-container" style="max-height:300px; overflow-y:auto; border:1px solid #ddd">
+            <table class="striped">
+              <thead><tr><th>Name</th><th>Source</th></tr></thead>
+              <tbody id="sounds-items-list"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <a href="#" id="sounds-save" class="waves-effect waves-green btn">Save</a>
+          <a href="#" class="modal-close waves-effect btn-flat">Cancel</a>
         </div>
       </div>
     </div>

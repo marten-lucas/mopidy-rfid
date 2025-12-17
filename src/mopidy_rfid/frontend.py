@@ -22,6 +22,7 @@ except Exception:  # pragma: no cover - runtime only
 from .rfid_manager import RFIDManager
 from .led_manager import LEDManager
 from .mappings_db import MappingsDB
+from .sounds_config import SoundsConfig
 
 logger = logging.getLogger("mopidy_rfid")
 
@@ -44,6 +45,7 @@ class RFIDFrontend(_BaseClass):
         self._rfid: Optional[RFIDManager] = None
         self._led: Optional[LEDManager] = None
         self._db = MappingsDB(self._config.get("mappings_db_path"))
+        self._sounds = SoundsConfig(self._config.get("sounds_config_path"))
         # Load config mappings as fallback/defaults
         self._config_mappings: Dict[str, str] = self._config.get("mappings", {}) or {}
 
@@ -53,6 +55,16 @@ class RFIDFrontend(_BaseClass):
         # Start hardware initialization in background thread to avoid blocking
         t = threading.Thread(target=self._init_hardware, name="rfid-hw-init", daemon=True)
         t.start()
+        # Play welcome sound if configured
+        try:
+            uri = self._sounds.get("welcome")
+            if uri and self.core is not None:
+                logger.info("RFIDFrontend: playing welcome sound: %s", uri)
+                self.core.tracklist.clear().get()
+                self.core.tracklist.add(uris=[uri]).get()
+                self.core.playback.play().get()
+        except Exception:
+            logger.exception("RFIDFrontend: failed to play welcome sound")
 
     def _init_hardware(self) -> None:
         """Initialize hardware in background thread."""
@@ -94,6 +106,16 @@ class RFIDFrontend(_BaseClass):
     def on_stop(self) -> None:
         """Called by Mopidy when actor stops."""
         logger.info("RFIDFrontend stopping")
+        # Play farewell sound
+        try:
+            uri = self._sounds.get("farewell")
+            if uri and self.core is not None:
+                logger.info("RFIDFrontend: playing farewell sound: %s", uri)
+                self.core.tracklist.clear().get()
+                self.core.tracklist.add(uris=[uri]).get()
+                self.core.playback.play().get()
+        except Exception:
+            logger.exception("RFIDFrontend: failed to play farewell sound")
         if self._rfid:
             try:
                 self._rfid.stop()
@@ -143,6 +165,17 @@ class RFIDFrontend(_BaseClass):
                 self._led.flash_confirm()
             except Exception:
                 logger.exception("LED flash failed")
+        # Play detected sound (confirmation)
+        try:
+            uri_det = self._sounds.get("detected")
+            if uri_det and self.core is not None:
+                logger.info("RFIDFrontend: playing detected sound: %s", uri_det)
+                # Play detected confirmation quickly without clearing user's tracklist persistently
+                self.core.tracklist.clear().get()
+                self.core.tracklist.add(uris=[uri_det]).get()
+                self.core.playback.play().get()
+        except Exception:
+            logger.exception("RFIDFrontend: failed to play detected sound")
 
         # ALWAYS broadcast tag event to Web UI (even if no mapping exists)
         # Use a separate thread to avoid event loop issues

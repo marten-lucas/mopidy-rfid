@@ -9,6 +9,8 @@ from typing import Any
 import tornado.web
 import tornado.websocket
 
+from .sounds_config import SoundsConfig
+
 logger = logging.getLogger("mopidy_rfid")
 
 # Store the HTTP server's IOLoop so we can safely broadcast from other threads
@@ -276,6 +278,36 @@ class LastScanHandler(tornado.web.RequestHandler):
         self.write(LAST_SCAN or {})
 
 
+class SoundsHandler(tornado.web.RequestHandler):
+    def initialize(self, config: Any, core: Any):
+        self.core = core
+        self.sounds = SoundsConfig()
+
+    async def get(self):
+        try:
+            self.write(self.sounds.get_all())
+        except Exception:
+            logger.exception("http: get sounds failed")
+            self.set_status(500)
+            self.write({})
+
+    async def post(self):
+        try:
+            data = json.loads(self.request.body.decode("utf-8"))
+            key = str(data.get("key", ""))
+            uri = str(data.get("uri", ""))
+            if key not in ("welcome", "farewell", "detected"):
+                self.set_status(400)
+                self.write({"ok": False, "error": "invalid key"})
+                return
+            self.sounds.set(key, uri)
+            self.write({"ok": True})
+        except Exception:
+            logger.exception("http: set sounds failed")
+            self.set_status(400)
+            self.write({"ok": False})
+
+
 def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
     """Factory function called by Mopidy to register HTTP handlers."""
     # Get the running frontend actor (Mopidy will have started it)
@@ -311,9 +343,10 @@ def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
         (r"/api/search", SearchHandler, {"core": core}),
         (r"/api/browse", BrowseHandler, {"core": core}),
         (r"/api/last-scan", LastScanHandler, {}),
+        (r"/api/sounds", SoundsHandler, {"config": config, "core": core}),
         (r"/ws", WSHandler, {}),
         (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": static_path}),
-        (r"/(favicon\.ico)", tornado.web.StaticFileHandler, {"path": static_path}),
+        (r"/(favicon\\.ico)", tornado.web.StaticFileHandler, {"path": static_path}),
         (r"/(.*)", tornado.web.StaticFileHandler, {"path": web_path, "default_filename": "index.html"}),
     ]
 

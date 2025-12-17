@@ -4,6 +4,7 @@ let wsReconnectTimer = null;
 let waitingForScan = false;
 let searchTimeout = null;
 let scanPollTimer = null;
+let currentSoundKey = null;
 
 // WebSocket connection
 function connectWebSocket() {
@@ -422,6 +423,48 @@ function updateSettings(mappings) {
   document.getElementById('total-mappings').textContent = Object.keys(mappings).length;
 }
 
+// Sounds functions
+function loadSounds() {
+  fetch('/rfid/api/sounds').then(r=>r.json()).then(data=>{
+    document.getElementById('sound-welcome-uri').textContent = data.welcome || '-';
+    document.getElementById('sound-farewell-uri').textContent = data.farewell || '-';
+    document.getElementById('sound-detected-uri').textContent = data.detected || '-';
+  }).catch(()=>{});
+}
+
+function openSoundsModal(key) {
+  currentSoundKey = key;
+  document.getElementById('sounds-type-select').value = 'track';
+  M.FormSelect.init(document.querySelectorAll('select'));
+  // Load initial items
+  loadSoundsItems('track');
+  M.Modal.getInstance(document.getElementById('sounds-modal')).open();
+}
+
+function loadSoundsItems(type) {
+  const tbody = document.getElementById('sounds-items-list');
+  tbody.innerHTML = '<tr><td colspan="2" class="center">Loading...</td></tr>';
+  fetch(`/rfid/api/browse?type=${type}`).then(r=>r.json()).then(data=>{
+    const items = data.items || [];
+    tbody.innerHTML = '';
+    items.forEach(item=>{
+      const tr = document.createElement('tr');
+      tr.style.cursor = 'pointer';
+      const tdName = document.createElement('td'); tdName.textContent = item.name || item.uri;
+      const tdSource = document.createElement('td'); tdSource.textContent = item.source || 'unknown'; tdSource.className='grey-text';
+      tr.appendChild(tdName); tr.appendChild(tdSource);
+      tr.addEventListener('click', ()=>{
+        // save selection
+        fetch('/rfid/api/sounds', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key: currentSoundKey, uri: item.uri})})
+          .then(r=>{ if(r.ok){ M.toast({html:'Sound saved', classes:'green'}); loadSounds(); M.Modal.getInstance(document.getElementById('sounds-modal')).close(); } else { M.toast({html:'Save failed', classes:'red'});} });
+      });
+      tbody.appendChild(tr);
+    });
+  }).catch(()=>{
+    tbody.innerHTML = '<tr><td colspan="2" class="center red-text">Failed to load items</td></tr>';
+  });
+}
+
 // Init
 document.addEventListener('DOMContentLoaded', () => {
   // Init Materialize components
@@ -520,6 +563,15 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     input.click();
   });
+  
+  // Sounds modal listeners
+  M.Modal.init(document.querySelectorAll('#sounds-modal'));
+  M.FormSelect.init(document.querySelectorAll('#sounds-type-select'));
+  loadSounds();
+  document.getElementById('btn-sel-welcome').addEventListener('click', ()=>openSoundsModal('welcome'));
+  document.getElementById('btn-sel-farewell').addEventListener('click', ()=>openSoundsModal('farewell'));
+  document.getElementById('btn-sel-detected').addEventListener('click', ()=>openSoundsModal('detected'));
+  document.getElementById('sounds-type-select').addEventListener('change', (e)=> loadSoundsItems(e.target.value));
   
   // Initial load
   fetchMappings();
