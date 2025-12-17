@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 import threading
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
@@ -130,6 +131,11 @@ class RFIDFrontend(_BaseClass):
                 self._led.flash_confirm()
         except Exception:
             logger.exception("RFIDFrontend: LED farewell animation failed")
+        # Allow farewell sound to play before shutdown to avoid SEGV in teardown
+        try:
+            time.sleep(3)
+        except Exception:
+            pass
         if self._rfid:
             try:
                 self._rfid.stop()
