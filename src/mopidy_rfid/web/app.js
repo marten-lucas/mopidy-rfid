@@ -485,6 +485,23 @@ function saveLedSettings() {
     .catch(()=> M.toast({html:'Save failed', classes:'red'}));
 }
 
+// Status functions
+function loadStatus() {
+  fetch('/rfid/api/status').then(r=>r.json()).then(data=>{
+    const el = document.getElementById('rfid-status');
+    if (!el) return;
+    const val = data.reader || 'unknown';
+    el.textContent = val;
+    el.className = '';
+    if (val === 'available') el.classList.add('green-text');
+    else if (val === 'unavailable') el.classList.add('red-text');
+    else el.classList.add('grey-text');
+  }).catch(()=>{
+    const el = document.getElementById('rfid-status');
+    if (el) { el.textContent = 'unknown'; el.className = 'grey-text'; }
+  });
+}
+
 // Init
 document.addEventListener('DOMContentLoaded', () => {
   // Init Materialize components
@@ -596,6 +613,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // LED settings
   loadLedSettings();
   document.getElementById('led-save').addEventListener('click', saveLedSettings);
+  
+  // Status
+  loadStatus();
+  setInterval(loadStatus, 10000);
   
   // Initial load
   fetchMappings();

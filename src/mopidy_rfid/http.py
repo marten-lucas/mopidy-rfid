@@ -338,6 +338,29 @@ class LedSettingsHandler(tornado.web.RequestHandler):
             self.write({"ok": False})
 
 
+class StatusHandler(tornado.web.RequestHandler):
+    def initialize(self, frontend: Any):
+        self.frontend = frontend
+
+    async def get(self):
+        try:
+            reader = "unknown"
+            if self.frontend is not None:
+                try:
+                    # Ask actor for a simple flag by checking private attr via proxy
+                    info = self.frontend.proxy().list_mappings().get()  # ping actor
+                    # If actor responsive, infer availability by checking an attribute
+                    # We cannot access private _rfid via proxy, so expose approximate status
+                    reader = "available"
+                except Exception:
+                    reader = "unavailable"
+            self.write({"reader": reader})
+        except Exception:
+            logger.exception("http: status handler failed")
+            self.set_status(500)
+            self.write({"reader": "unknown"})
+
+
 def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
     """Factory function called by Mopidy to register HTTP handlers."""
     # Get the running frontend actor (Mopidy will have started it)
@@ -375,6 +398,7 @@ def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
         (r"/api/last-scan", LastScanHandler, {}),
         (r"/api/sounds", SoundsHandler, {"config": config, "core": core}),
         (r"/api/led-settings", LedSettingsHandler, {}),
+        (r"/api/status", StatusHandler, {"frontend": frontend}),
         (r"/ws", WSHandler, {}),
         (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": static_path}),
         (r"/(favicon\\.ico)", tornado.web.StaticFileHandler, {"path": static_path}),
