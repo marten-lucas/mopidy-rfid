@@ -218,18 +218,18 @@ class LEDManager:
         count = self._get_count()
         if not strip:
             return
-        self._apply_brightness()
+        
+        # Try lock without blocking - if busy (e.g., flash_confirm), skip this update
+        if not self._lock.acquire(blocking=False):
+            return
+        
         try:
+            self._apply_brightness()
             remain_ratio = max(0.0, min(1.0, remain_ratio))
             remain_leds = int(round(count * remain_ratio))
             
             # Only update if the number of lit LEDs changed
             last_count = getattr(self, '_last_remain_count', -1)
-            
-            logger.debug(
-                "LED remaining_progress: ratio=%.3f remain_leds=%d last_count=%d updating=%s",
-                remain_ratio, remain_leds, last_count, last_count != remain_leds
-            )
             
             if last_count == remain_leds:
                 return
@@ -237,11 +237,23 @@ class LEDManager:
             logger.info("LED: updating remaining progress from %d to %d LEDs", last_count, remain_leds)
             self._last_remain_count = remain_leds
             
-            for i in range(count):
-                strip.setPixelColor(i, self._color(color) if i < remain_leds else self._color((0, 0, 0)))
+            # Update only the specific LED that changed
+            if last_count == -1:
+                # First time, set all
+                for i in range(count):
+                    strip.setPixelColor(i, self._color(color) if i < remain_leds else self._color((0, 0, 0)))
+            elif last_count > remain_leds:
+                # Turning one LED off at position last_count - 1
+                strip.setPixelColor(last_count - 1, self._color((0, 0, 0)))
+            elif last_count < remain_leds:
+                # Turning one LED on at position last_count (shouldn't happen normally)
+                strip.setPixelColor(last_count, self._color(color))
+            
             strip.show()
         except Exception:
             logger.exception("LED: remaining_progress failed")
+        finally:
+            self._lock.release()
 
     # Remove obsolete helpers if present
     # (No-op placeholder to signal cleanup to tooling)
