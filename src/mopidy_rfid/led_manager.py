@@ -226,8 +226,21 @@ class LEDManager:
             if last == remain_leds:
                 return
             setattr(self, "_last_remain_leds", remain_leds)
-            for i in range(count):
-                strip.setPixelColor(i, self._color(color) if i < remain_leds else self._color((0, 0, 0)))
+            
+            # Only update the LEDs that changed to avoid flickering
+            # Turn off LEDs that should now be off (from last to remain_leds)
+            if last is not None and last > remain_leds:
+                for i in range(remain_leds, last):
+                    strip.setPixelColor(i, self._color((0, 0, 0)))
+            # Turn on LEDs that should now be on (if we're increasing, though we shouldn't be)
+            elif last is not None and last < remain_leds:
+                for i in range(last, remain_leds):
+                    strip.setPixelColor(i, self._color(color))
+            else:
+                # First run, set all
+                for i in range(count):
+                    strip.setPixelColor(i, self._color(color) if i < remain_leds else self._color((0, 0, 0)))
+            
             strip.show()
         except Exception:
             pass

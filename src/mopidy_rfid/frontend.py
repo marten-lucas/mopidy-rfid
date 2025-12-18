@@ -209,9 +209,9 @@ class RFIDFrontend(_BaseClass):
                                     self._led.remaining_progress(remain_ratio, color=(255,255,255))
                                 except Exception:
                                     pass
-                    time.sleep(0.5)
+                    time.sleep(0.3)
                 except Exception:
-                    time.sleep(0.5)
+                    time.sleep(0.3)
         self._progress_thread = threading.Thread(target=_run, name="led-progress", daemon=True)
         self._progress_thread.start()
 
