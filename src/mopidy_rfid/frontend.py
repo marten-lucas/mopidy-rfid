@@ -189,23 +189,50 @@ class RFIDFrontend(_BaseClass):
                         if state != last_state:
                             try:
                                 if state == "playing":
-                                    # Stop idle comet when playback starts
+                                    # Stop idle comet and paused animation when playback starts
                                     try:
                                         self._led.stop_standby_comet()
                                     except Exception:
                                         logger.exception("Failed to stop standby comet on play")
+                                    try:
+                                        self._led.stop_paused_sweep()
+                                    except Exception:
+                                        logger.exception("Failed to stop paused sweep on play")
+                                elif state == "paused":
+                                    # Stop standby comet and remaining progress, start paused animation
+                                    try:
+                                        self._led.stop_standby_comet()
+                                    except Exception:
+                                        pass
+                                    # Calculate current remain LEDs for paused animation
+                                    try:
+                                        cp = self.core.playback.get_current_tl_track().get()
+                                        pos_ms = self.core.playback.get_time_position().get()
+                                        length_ms = None
+                                        if cp and cp.track and cp.track.length:
+                                            length_ms = int(cp.track.length)
+                                        if length_ms and length_ms > 0:
+                                            remain_ratio = max(0.0, min(1.0, 1.0 - (pos_ms/float(length_ms))))
+                                            remain_leds = int(round(self._led._led_count * remain_ratio))
+                                            self._led.start_paused_sweep(remain_leds)
+                                    except Exception:
+                                        logger.exception("Failed to start paused sweep")
                                 else:
-                                    # Restart idle comet when playback stops
+                                    # Stopped: stop paused animation, restart idle comet
+                                    try:
+                                        self._led.stop_paused_sweep()
+                                    except Exception:
+                                        pass
                                     try:
                                         self._led.start_standby_comet(color=(0,8,0), delay=5.0, trail=2)
                                     except Exception:
                                         logger.exception("Failed to start standby comet on stop")
                             except Exception:
-                                logger.exception("Error handling standby comet on state change")
+                                logger.exception("Error handling LED animations on state change")
                             last_state = state
 
-                        # Track remaining time only when playing
-                        if state == "playing":
+                        # Track remaining time when playing or paused
+                        if state in ("playing", "paused"):
                             cp = self.core.playback.get_current_tl_track().get()
                             pos_ms = self.core.playback.get_time_position().get()
                             length_ms = None
@@ -216,16 +243,21 @@ class RFIDFrontend(_BaseClass):
                                 length_ms = None
                             if length_ms and length_ms > 0:
                                 remain_ratio = max(0.0, min(1.0, 1.0 - (pos_ms/float(length_ms))))
+                                remain_leds = int(round(self._led._led_count * remain_ratio))
                                 logger.debug(
-                                    "Progress updater: pos=%dms len=%dms ratio=%.3f",
-                                    pos_ms, length_ms, remain_ratio
+                                    "Progress updater: pos=%dms len=%dms ratio=%.3f remain_leds=%d",
+                                    pos_ms, length_ms, remain_ratio, remain_leds
                                 )
                                 try:
-                                    self._led.remaining_progress(remain_ratio, color=(255,255,255))
+                                    if state == "playing":
+                                        self._led.remaining_progress(remain_ratio, color=(255,255,255))
+                                    elif state == "paused":
+                                        # Update paused animation remain count
+                                        self._led.update_paused_remain(remain_leds)
                                 except Exception:
-                                    logger.exception("Progress updater: remaining_progress call failed")
+                                    logger.exception("Progress updater: LED update failed")
                         else:
-                            # Reset cache when not playing
+                            # Reset cache when stopped
                             if hasattr(self._led, '_last_remain_count'):
                                 logger.debug("Progress updater: clearing cache (state=%s)", state)
                                 delattr(self._led, '_last_remain_count')
@@ -278,9 +310,13 @@ class RFIDFrontend(_BaseClass):
             # Handle special commands first so we don't queue the detected sound for them
             if mapped_uri == "TOGGLE_PLAY":
                 # Toggle current playback state without adding detected sound
-                if self.core.playback.get_state().get() == "playing":
+                state = self.core.playback.get_state().get()
+                if state == "playing":
                     self.core.playback.pause().get()
+                elif state == "paused":
+                    self.core.playback.resume().get()
                 else:
+                    # If stopped, start playing current tracklist
                     self.core.playback.play().get()
                 return
             if mapped_uri == "STOP":

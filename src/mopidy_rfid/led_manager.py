@@ -333,6 +333,73 @@ class LEDManager:
         except Exception:
             pass
 
+    def start_paused_sweep(self, remain_leds: int, color=(255, 255, 255), sweep_color=(0, 255, 0)):
+        """Start a sweeping animation for paused state showing remaining LEDs with a scanning green LED."""
+        strip = self._get_strip()
+        count = self._get_count()
+        if not strip:
+            return
+        
+        # Stop if already running
+        if getattr(self, '_paused_running', False):
+            return
+        
+        self._paused_stop = threading.Event()
+        self._paused_running = True
+        self._paused_remain_leds = remain_leds
+        stop_ev = self._paused_stop
+        
+        def _run():
+            idx = 0
+            while not stop_ev.is_set():
+                try:
+                    with self._lock:
+                        remain = getattr(self, '_paused_remain_leds', remain_leds)
+                        # Set base remaining LEDs
+                        for i in range(count):
+                            if i < remain:
+                                strip.setPixelColor(i, self._color(color))
+                            else:
+                                strip.setPixelColor(i, self._color((0, 0, 0)))
+                        # Overlay scanning green LED
+                        if remain > 0:
+                            scan_pos = idx % remain
+                            strip.setPixelColor(scan_pos, self._color(sweep_color))
+                        strip.show()
+                    
+                    idx = (idx + 1) % max(1, remain)
+                    time.sleep(0.15)
+                except Exception:
+                    time.sleep(0.15)
+            
+            self._paused_running = False
+        
+        self._paused_thread = threading.Thread(target=_run, name='led-paused', daemon=True)
+        self._paused_thread.start()
+    
+    def stop_paused_sweep(self):
+        """Stop the paused sweep animation."""
+        try:
+            if hasattr(self, '_paused_stop') and self._paused_stop:
+                try:
+                    self._paused_stop.set()
+                except Exception:
+                    pass
+                th = getattr(self, '_paused_thread', None)
+                if th is not None and th.is_alive():
+                    try:
+                        th.join(timeout=1.0)
+                    except Exception:
+                        pass
+                self._paused_running = False
+        except Exception:
+            pass
+    
+    def update_paused_remain(self, remain_leds: int):
+        """Update the number of remaining LEDs for paused animation."""
+        if getattr(self, '_paused_running', False):
+            self._paused_remain_leds = remain_leds
+
     # Fix helper syntax if present
     try:
         def _fix_helper_syntax():
