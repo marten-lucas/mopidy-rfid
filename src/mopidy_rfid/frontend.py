@@ -406,8 +406,23 @@ class RFIDFrontend(_BaseClass):
         def _broadcast():
             try:
                 from . import http
-                http.broadcast_event({"event": "tag_scanned", "tag_id": tag_str, "uri": mapped_uri or ""})
-                logger.info("RFIDFrontend: broadcasted tag_scanned event for tag %s", tag_str)
+                # determine action for UI
+                if mapped_uri:
+                    if mapped_uri == "TOGGLE_PLAY":
+                        action = "toggle"
+                    elif mapped_uri == "STOP":
+                        action = "stop"
+                    else:
+                        action = "play"
+                else:
+                    action = "none"
+                http.broadcast_event({
+                    "event": "tag_scanned",
+                    "tag_id": tag_str,
+                    "uri": mapped_uri or "",
+                    "action": action,
+                })
+                logger.info("RFIDFrontend: broadcasted tag_scanned event for tag %s (action=%s)", tag_str, action)
             except Exception:
                 logger.exception("Failed to broadcast tag event")
         threading.Thread(target=_broadcast, daemon=True).start()
