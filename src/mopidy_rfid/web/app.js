@@ -57,7 +57,7 @@ function updateStatus(connected) {
 function handleWebSocketMessage(data) {
   if (data.event === 'tag_scanned') {
     if (waitingForScan) {
-      handleScannedTag(String(data.tag_id));
+      handleScannedTag(String(data.tag_id), data.action);
     }
   } else if (data.event === 'mappings_updated') {
     fetchMappings();
@@ -367,14 +367,21 @@ function stopScanPolling() {
   }
 }
 
-function handleScannedTag(tagId) {
+function handleScannedTag(tagId, action) {
   document.getElementById('tag-input').value = tagId;
   document.getElementById('tag-input').removeAttribute('disabled');
   document.getElementById('tag-helper').textContent = 'Tag scanned successfully';
   waitingForScan = false;
   stopScanPolling();
   M.updateTextFields();
-  M.toast({html: `Tag ${tagId} scanned`, classes: 'green'});
+  let actionLabel = '';
+  if (action) {
+    if (action === 'play') actionLabel = ' — Play';
+    else if (action === 'toggle') actionLabel = ' — Toggle Play/Pause';
+    else if (action === 'stop') actionLabel = ' — Stop';
+    else actionLabel = ` — ${action}`;
+  }
+  M.toast({html: `Tag ${tagId} scanned${actionLabel}`, classes: 'green'});
   
   // Check if tag already exists
   fetch('/rfid/api/mappings')
