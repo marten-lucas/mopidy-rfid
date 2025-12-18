@@ -185,13 +185,14 @@ class LEDManager:
             return
         self._apply_brightness()
         try:
-            self._off(strip, count)
-            time.sleep(0.1)
-            for i in range(count):
-                for j in range(count):
-                    strip.setPixelColor(j, self._color(color) if j <= i else self._color((0, 0, 0)))
-                strip.show()
-                time.sleep(delay)
+            with self._lock:
+                self._off(strip, count)
+                time.sleep(0.1)
+                for i in range(count):
+                    for j in range(count):
+                        strip.setPixelColor(j, self._color(color) if j <= i else self._color((0, 0, 0)))
+                    strip.show()
+                    time.sleep(delay)
         except Exception:
             pass
 
@@ -202,52 +203,58 @@ class LEDManager:
             return
         self._apply_brightness()
         try:
-            self._fill(strip, count, color)
-            time.sleep(0.1)
-            for i in range(count - 1, -1, -1):
-                for j in range(count):
-                    strip.setPixelColor(j, self._color(color) if j < i else self._color((0, 0, 0)))
-                strip.show()
-                time.sleep(delay)
-            self._off(strip, count)
+            with self._lock:
+                self._fill(strip, count, color)
+                time.sleep(0.1)
+                for i in range(count - 1, -1, -1):
+                    for j in range(count):
+                        strip.setPixelColor(j, self._color(color) if j < i else self._color((0, 0, 0)))
+                    strip.show()
+                    time.sleep(delay)
+                self._off(strip, count)
         except Exception:
             pass
 
     def remaining_progress(self, remain_ratio: float, color=(255, 255, 255)):
-        """Update LED ring to show remaining track time. Only updates when LED count changes."""
+        """Update LED ring to show remaining track time. Only updates when LED count changes.
+
+        Quick early-exit if nothing changed, then acquire lock and re-check before updating
+        to avoid race with the standby comet and other animations.
+        """
         remain_ratio = max(0.0, min(1.0, remain_ratio))
         count = self._led_count
         remain_leds = int(round(count * remain_ratio))
-        
-        # Early exit if nothing changed - BEFORE any strip access
+
+        # Quick early exit (cheap) before touching the strip
         last_count = getattr(self, '_last_remain_count', None)
         if last_count == remain_leds:
             return
-        
+
         strip = self._get_strip()
         if not strip:
             return
-        
-        # Try lock without blocking - if busy (e.g., flash_confirm), skip this update
-        if not self._lock.acquire(blocking=False):
-            return
-        
-        try:
-            self._last_remain_count = remain_leds
-            
-            # Set all LEDs at once - like in your timer_effect example
-            for i in range(count):
-                if i < remain_leds:
-                    strip.setPixelColor(i, self._color(color))
-                else:
-                    strip.setPixelColor(i, self._color((0, 0, 0)))
-            
-            # Single show() call to update hardware
-            strip.show()
-        except Exception:
-            logger.exception("LED: remaining_progress failed")
-        finally:
-            self._lock.release()
+
+        # Acquire lock (blocking) to serialize with other animations
+        with self._lock:
+            # Re-check under lock
+            last_count = getattr(self, '_last_remain_count', None)
+            if last_count == remain_leds:
+                return
+
+            try:
+                self._last_remain_count = remain_leds
+
+                # Set all LEDs at once
+                for i in range(count):
+                    if i < remain_leds:
+                        strip.setPixelColor(i, self._color(color))
+                    else:
+                        strip.setPixelColor(i, self._color((0, 0, 0)))
+
+                # Single show() call to update hardware
+                strip.show()
+            except Exception:
+                logger.exception("LED: remaining_progress failed")
 
     # Remove obsolete helpers if present
     # (No-op placeholder to signal cleanup to tooling)
@@ -263,33 +270,35 @@ class LEDManager:
         count = self._get_count()
         if not strip:
             return
-        
+
         # Use simple flag instead of lock to avoid complexity
         if getattr(self, '_standby_running', False):
             return  # Already running
-        
+
         self._standby_stop = threading.Event()
         self._standby_running = True
         stop_ev = self._standby_stop
-        
+
         def _run():
             idx = 0
             off = self._color((0, 0, 0))
             while not stop_ev.is_set():
                 try:
-                    # Clear all
-                    for i in range(count):
-                        strip.setPixelColor(i, off)
-                    # Draw comet head and trail
-                    for t in range(trail + 1):
-                        pos = (idx - t) % count
-                        intensity = max(1, color[1] - t * 2)
-                        strip.setPixelColor(pos, self._color((color[0], intensity, color[2])))
-                    strip.show()
-                    
+                    # Build and show frame atomically under the lock
+                    with self._lock:
+                        # Clear all
+                        for i in range(count):
+                            strip.setPixelColor(i, off)
+                        # Draw comet head and trail
+                        for t in range(trail + 1):
+                            pos = (idx - t) % count
+                            intensity = max(1, color[1] - t * 2)
+                            strip.setPixelColor(pos, self._color((color[0], intensity, color[2])))
+                        strip.show()
+
                     # Move to next position
                     idx = (idx + 1) % count
-                    
+
                     # Wait for delay with responsiveness checks
                     for _ in range(int(delay * 2)):
                         if stop_ev.is_set():
@@ -297,10 +306,10 @@ class LEDManager:
                         time.sleep(0.5)
                 except Exception:
                     time.sleep(0.5)
-            
+
             # Clean up on exit
             self._standby_running = False
-        
+
         self._standby_thread = threading.Thread(target=_run, name='led-standby', daemon=True)
         self._standby_thread.start()
 
@@ -312,7 +321,7 @@ class LEDManager:
                 self._standby_running = False
         except Exception:
             pass
-        
+
         # Clear the ring
         try:
             strip = self._get_strip()
