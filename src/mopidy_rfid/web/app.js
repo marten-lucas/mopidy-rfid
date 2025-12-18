@@ -57,14 +57,8 @@ function updateStatus(connected) {
 function handleWebSocketMessage(data) {
   if (data.event === 'tag_scanned') {
     if (waitingForScan) {
-      // Modal is open and waiting for scan
-      handleScannedTag(data.tag_id);
-    } else {
-      // Tag scanned while not in add mode - highlight and show edit option
-      M.toast({html: `Tag ${data.tag_id} scanned`, classes: 'blue'});
-      highlightAndEditTag(data.tag_id);
+      handleScannedTag(String(data.tag_id));
     }
-    fetchMappings(); // Refresh table
   } else if (data.event === 'mappings_updated') {
     fetchMappings();
   }
@@ -182,6 +176,13 @@ function saveMapping(tag, uri, description) {
       throw new Error('Save failed');
     }
   })
+  .then(r=> r.json ? r.json() : Promise.resolve({ok:r.ok}))
+  .then(()=>{
+    M.toast({html:'Saved', classes:'green'});
+    document.getElementById('tag-input').value='';
+    waitingForScan = true;
+    startScanPolling();
+  })
   .catch(e => {
     console.error(e);
     M.toast({html: 'Failed to save mapping', classes: 'red'});
@@ -282,6 +283,9 @@ function filterItems(query) {
 function openAddModal() {
   resetModal();
   document.getElementById('modal-title').textContent = 'Add Mapping';
+  const tagInput = document.getElementById('tag-input');
+  tagInput.value = '';
+  tagInput.setAttribute('placeholder', 'Scan a tag...');
   document.getElementById('tag-helper').textContent = 'Please scan a tag to continue';
   waitingForScan = true;
   startScanPolling();
@@ -510,6 +514,7 @@ document.addEventListener('DOMContentLoaded', () => {
     onCloseEnd: () => {
       waitingForScan = false;
       stopScanPolling();
+      document.getElementById('tag-input').value='';
     }
   });
   M.FormSelect.init(document.querySelectorAll('select'));

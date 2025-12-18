@@ -70,7 +70,7 @@ class RFIDFrontend(_BaseClass):
                 self.core.playback.play().get()
         except Exception:
             logger.exception("RFIDFrontend: failed to play welcome sound")
-        # LED welcome animation if enabled
+        # LED welcome animation if enabled (may run after hardware init)
         try:
             if self._led and self._led_cfg.get("welcome"):
                 # Prefer animated welcome
@@ -102,12 +102,15 @@ class RFIDFrontend(_BaseClass):
                 button_pin=pin_button_led,
             )
             if self._led:
-                self._led.set_button_led(True)
+                try:
+                    self._led.stop_standby_comet()
+                except Exception:
+                    pass
                 if led_enabled:
                     self._led.show_ready()
                     # Start standby comet (very low brightness, slow)
                     try:
-                        self._led.start_standby_comet(color=(0, 8, 0), delay=0.1, trail=2)
+                        self._led.start_standby_comet(color=(0, 8, 0), delay=5.0, trail=2)
                     except Exception:
                         pass
         except Exception:
@@ -178,9 +181,19 @@ class RFIDFrontend(_BaseClass):
         def _run():
             while not self._progress_stop.is_set():
                 try:
-                    if self._led and self._led_cfg.get("remaining") and self.core is not None:
+                    if self._led and self.core is not None:
                         state = self.core.playback.get_state().get()
                         if state == "playing":
+                            try:
+                                self._led.stop_standby_comet()
+                            except Exception:
+                                pass
+                        else:
+                            try:
+                                self._led.start_standby_comet(color=(0,8,0), delay=5.0, trail=2)
+                            except Exception:
+                                pass
+                        if self._led_cfg.get("remaining") and state == "playing":
                             tl = self.core.tracklist.get_tracks().get()
                             cp = self.core.playback.get_current_tl_track().get()
                             pos_ms = self.core.playback.get_time_position().get()
@@ -390,10 +403,3 @@ class RFIDFrontend(_BaseClass):
             self._play_detect_then_execute(uri)
         except Exception:
             logger.exception("RFIDFrontend: failed detected-then-execute flow")
-        
-        # After queuing playback, restart standby after a short delay
-        try:
-            if self._led:
-                threading.Timer(5.0, lambda: self._led.start_standby_comet(color=(0,8,0), delay=0.1, trail=2)).start()
-        except Exception:
-            pass

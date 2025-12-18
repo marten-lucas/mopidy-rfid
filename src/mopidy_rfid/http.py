@@ -46,9 +46,10 @@ class MappingsHandler(tornado.web.RequestHandler):
                 self.write({"ok": False, "error": "frontend not available"})
                 return
             data = json.loads(self.request.body.decode("utf-8"))
-            tag = str(data.get("tag", ""))
-            uri = str(data.get("uri", ""))
-            description = str(data.get("description", ""))
+            tag = str(data.get("tag", "")).strip()
+            uri = str(data.get("uri", "")).strip()
+            description = str(data.get("description", "")).strip()
+            logger.info("http: set mapping request tag=%s uri=%s", tag, uri)
             if not tag or not uri:
                 raise ValueError("missing tag or uri")
             self.frontend.proxy().set_mapping(tag, uri, description).get()
@@ -252,7 +253,7 @@ class SearchHandler(tornado.web.RequestHandler):
 class WSHandler(tornado.websocket.WebSocketHandler):
     clients: set[WSHandler] = set()
 
-    def open(self):
+    def open(self, *args, **kwargs):
         logger.debug("websocket: client connected")
         self.clients.add(self)
 
@@ -361,6 +362,12 @@ class StatusHandler(tornado.web.RequestHandler):
             self.write({"reader": "unknown"})
 
 
+# /api/ping for quick health checks
+class PingHandler(tornado.web.RequestHandler):
+    async def get(self):
+        self.write({"ok": True})
+
+
 def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
     """Factory function called by Mopidy to register HTTP handlers."""
     # Get the running frontend actor (Mopidy will have started it)
@@ -399,6 +406,7 @@ def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
         (r"/api/sounds", SoundsHandler, {"config": config, "core": core}),
         (r"/api/led-settings", LedSettingsHandler, {}),
         (r"/api/status", StatusHandler, {"frontend": frontend}),
+        (r"/api/ping", PingHandler, {}),
         (r"/ws", WSHandler, {}),
         (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": static_path}),
         (r"/(favicon\\.ico)", tornado.web.StaticFileHandler, {"path": static_path}),
