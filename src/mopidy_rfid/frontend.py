@@ -275,20 +275,24 @@ class RFIDFrontend(_BaseClass):
             uri_det = ""
         try:
             self.core.tracklist.clear().get()
+            # Handle special commands first so we don't queue the detected sound for them
+            if mapped_uri == "TOGGLE_PLAY":
+                # Toggle current playback state without adding detected sound
+                if self.core.playback.get_state().get() == "playing":
+                    self.core.playback.pause().get()
+                else:
+                    self.core.playback.play().get()
+                return
+            if mapped_uri == "STOP":
+                # Stop playback immediately; don't queue detected sound
+                self.core.playback.stop().get()
+                return
             # Add detected sound first if configured
             if uri_det:
                 logger.info("RFIDFrontend: queue detected sound: %s", uri_det)
                 self.core.tracklist.add(uris=[uri_det]).get()
             # Add mapped content
             logger.info("RFIDFrontend: queue mapped content: %s", mapped_uri)
-            if mapped_uri == "TOGGLE_PLAY":
-                # If toggle requested, just play current queue (detected only)
-                self.core.playback.play().get()
-                return
-            if mapped_uri == "STOP":
-                # Detected then stop after it ends; just start playback of detected
-                self.core.playback.play().get()
-                return
             # Expand albums/playlists
             if mapped_uri.startswith('spotify:album:') or ':album:' in mapped_uri:
                 lookup_result = self.core.library.lookup(uris=[mapped_uri]).get()
