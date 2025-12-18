@@ -229,7 +229,7 @@ class LEDManager:
 
     # helpers
     def _set_upto(self, idx: int, color):
-        for j in range(self.led_count):
+        for j in range self.led_count:
             if j <= idx:
                 self.strip.setPixelColor(j, self._color_tuple(color))
             else:
@@ -246,38 +246,59 @@ class LEDManager:
             return 0
 
     # Standby comet animation (very low brightness, slow)
-    def start_standby_comet(self, color=(0, 8, 0), delay=0.08, trail=3):
+    _standby_lock = threading.Lock()
+    _standby_stop = None
+    _standby_thread = None
+
+    def start_standby_comet(self, color=(0, 8, 0), delay=5.0, trail=2):
         strip = self._get_strip()
         count = self._get_count()
         if not strip:
             return
-        self._standby_stop = threading.Event()
-        def _run():
-            idx = 0
-            off = self._color((0,0,0))
-            while not self._standby_stop.is_set():
+        with self._standby_lock:
+            # Stop existing
+            if self._standby_stop:
                 try:
-                    for i in range(count):
-                        strip.setPixelColor(i, off)
-                    for t in range(trail+1):
-                        pos = (idx - t) % count
-                        # fade trail
-                        intensity = max(1, color[1] - t*2)
-                        strip.setPixelColor(pos, self._color((color[0], intensity, color[2])))
-                    strip.show()
-                    idx = (idx + 1) % count
-                    time.sleep(delay)
+                    self._standby_stop.set()
                 except Exception:
-                    time.sleep(0.1)
-        self._standby_thread = threading.Thread(target=_run, name='led-standby', daemon=True)
-        self._standby_thread.start()
+                    pass
+            self._standby_stop = threading.Event()
+            stop_ev = self._standby_stop
+            # Create thread only once
+            if self._standby_thread and self._standby_thread.is_alive():
+                return
+            def _run():
+                idx = 0
+                off = self._color((0,0,0))
+                while not stop_ev.is_set():
+                    try:
+                        for i in range(count):
+                            strip.setPixelColor(i, off)
+                        for t in range(trail+1):
+                            pos = (idx - t) % count
+                            intensity = max(1, color[1] - t*2)
+                            strip.setPixelColor(pos, self._color((color[0], intensity, color[2])))
+                        strip.show()
+                        idx = (idx + 1) % count
+                        # very slow movement: change every 5s
+                        for _ in range(10):
+                            if stop_ev.is_set():
+                                break
+                            time.sleep(0.5)
+                    except Exception:
+                        time.sleep(0.5)
+            self._standby_thread = threading.Thread(target=_run, name='led-standby', daemon=True)
+            self._standby_thread.start()
 
     def stop_standby_comet(self):
-        try:
-            if hasattr(self, '_standby_stop') and self._standby_stop:
-                self._standby_stop.set()
-        except Exception:
-            pass
+        with self._standby_lock:
+            try:
+                if self._standby_stop:
+                    self._standby_stop.set()
+            except Exception:
+                pass
+            self._standby_stop = None
+            self._standby_thread = None
         # clear ring
         try:
             strip = self._get_strip()
