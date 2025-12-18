@@ -224,7 +224,6 @@ class LEDManager:
             return
         
         try:
-            self._apply_brightness()
             remain_ratio = max(0.0, min(1.0, remain_ratio))
             remain_leds = int(round(count * remain_ratio))
             
@@ -234,15 +233,24 @@ class LEDManager:
             if last_count == remain_leds:
                 return
             
-            logger.info("LED: updating remaining progress from %s to %d LEDs", last_count, remain_leds)
             self._last_remain_count = remain_leds
             
-            # Always update all LEDs to ensure correct state
-            # This is necessary because flash_confirm or standby comet may have changed them
-            for i in range(count):
-                strip.setPixelColor(i, self._color(color) if i < remain_leds else self._color((0, 0, 0)))
-            
-            strip.show()
+            # Only change the LEDs that need updating
+            if last_count is None:
+                # First time - set all
+                for i in range(count):
+                    strip.setPixelColor(i, self._color(color) if i < remain_leds else self._color((0, 0, 0)))
+                strip.show()
+            elif last_count > remain_leds:
+                # Decreasing - turn off LEDs from remain_leds to last_count
+                for i in range(remain_leds, last_count):
+                    strip.setPixelColor(i, self._color((0, 0, 0)))
+                strip.show()
+            elif last_count < remain_leds:
+                # Increasing - turn on LEDs from last_count to remain_leds
+                for i in range(last_count, remain_leds):
+                    strip.setPixelColor(i, self._color(color))
+                strip.show()
         except Exception:
             logger.exception("LED: remaining_progress failed")
         finally:
