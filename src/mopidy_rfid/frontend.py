@@ -184,19 +184,26 @@ class RFIDFrontend(_BaseClass):
                 try:
                     if self._led and self._led_cfg.get("remaining") and self.core is not None:
                         state = self.core.playback.get_state().get()
-                        
-                        # Manage standby comet based on playback state
-                        if state == "playing":
+
+                        # Act only on state changes to avoid repeated start/stop calls
+                        if state != last_state:
                             try:
-                                self._led.stop_standby_comet()
+                                if state == "playing":
+                                    # Stop idle comet when playback starts
+                                    try:
+                                        self._led.stop_standby_comet()
+                                    except Exception:
+                                        logger.exception("Failed to stop standby comet on play")
+                                else:
+                                    # Restart idle comet when playback stops
+                                    try:
+                                        self._led.start_standby_comet(color=(0,8,0), delay=5.0, trail=2)
+                                    except Exception:
+                                        logger.exception("Failed to start standby comet on stop")
                             except Exception:
-                                pass
-                        else:
-                            try:
-                                self._led.start_standby_comet(color=(0,8,0), delay=5.0, trail=2)
-                            except Exception:
-                                pass
-                        
+                                logger.exception("Error handling standby comet on state change")
+                            last_state = state
+
                         # Track remaining time only when playing
                         if state == "playing":
                             cp = self.core.playback.get_current_tl_track().get()

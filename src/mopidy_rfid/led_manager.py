@@ -227,7 +227,8 @@ class LEDManager:
 
         # Quick early exit (cheap) before touching the strip
         last_count = getattr(self, '_last_remain_count', None)
-        if last_count == remain_leds:
+        # If standby comet is/was running, force refresh to restore correct state
+        if last_count == remain_leds and not getattr(self, '_standby_running', False):
             return
 
         strip = self._get_strip()
@@ -238,7 +239,7 @@ class LEDManager:
         with self._lock:
             # Re-check under lock
             last_count = getattr(self, '_last_remain_count', None)
-            if last_count == remain_leds:
+            if last_count == remain_leds and not getattr(self, '_standby_running', False):
                 return
 
             try:
@@ -314,23 +315,21 @@ class LEDManager:
         self._standby_thread.start()
 
     def stop_standby_comet(self):
-        """Stop the standby comet animation and clear LEDs."""
+        """Stop the standby comet animation. Wait for thread to exit; do not clear ring here."""
         try:
             if hasattr(self, '_standby_stop') and self._standby_stop:
-                self._standby_stop.set()
+                try:
+                    self._standby_stop.set()
+                except Exception:
+                    pass
+                # wait for thread to finish (short timeout)
+                th = getattr(self, '_standby_thread', None)
+                if th is not None and th.is_alive():
+                    try:
+                        th.join(timeout=2.0)
+                    except Exception:
+                        pass
                 self._standby_running = False
-        except Exception:
-            pass
-
-        # Clear the ring
-        try:
-            strip = self._get_strip()
-            count = self._get_count()
-            if strip:
-                off = self._color((0, 0, 0))
-                for i in range(count):
-                    strip.setPixelColor(i, off)
-                strip.show()
         except Exception:
             pass
 
