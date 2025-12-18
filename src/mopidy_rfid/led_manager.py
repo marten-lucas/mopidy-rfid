@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+import math
 from typing import Tuple, Optional, Any
 
 # Defensive import for GPIO and rpi_ws281x
@@ -217,10 +218,14 @@ class LEDManager:
         count = self._get_count()
         if not strip:
             return
-        self._apply_brightness()
         try:
-            remain_ratio = max(0.0, min(1.0, remain_ratio))
-            remain_leds = int(round(count * remain_ratio))
+            r = max(0.0, min(1.0, remain_ratio))
+            # Use floor to ensure monotonic decrease and avoid 0/1 toggling at the end
+            remain_leds = int(math.floor(count * r + 1e-6))
+            last = getattr(self, "_last_remain_leds", None)
+            if last == remain_leds:
+                return
+            setattr(self, "_last_remain_leds", remain_leds)
             for i in range(count):
                 strip.setPixelColor(i, self._color(color) if i < remain_leds else self._color((0, 0, 0)))
             strip.show()
