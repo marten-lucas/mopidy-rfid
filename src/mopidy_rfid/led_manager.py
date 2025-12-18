@@ -225,16 +225,23 @@ class LEDManager:
             
             # Only update if the number of lit LEDs changed
             last_count = getattr(self, '_last_remain_count', -1)
+            
+            logger.debug(
+                "LED remaining_progress: ratio=%.3f remain_leds=%d last_count=%d updating=%s",
+                remain_ratio, remain_leds, last_count, last_count != remain_leds
+            )
+            
             if last_count == remain_leds:
                 return
             
+            logger.info("LED: updating remaining progress from %d to %d LEDs", last_count, remain_leds)
             self._last_remain_count = remain_leds
             
             for i in range(count):
                 strip.setPixelColor(i, self._color(color) if i < remain_leds else self._color((0, 0, 0)))
             strip.show()
         except Exception:
-            pass
+            logger.exception("LED: remaining_progress failed")
 
     # Remove obsolete helpers if present
     # (No-op placeholder to signal cleanup to tooling)

@@ -209,13 +209,18 @@ class RFIDFrontend(_BaseClass):
                                 length_ms = None
                             if length_ms and length_ms > 0:
                                 remain_ratio = max(0.0, min(1.0, 1.0 - (pos_ms/float(length_ms))))
+                                logger.debug(
+                                    "Progress updater: pos=%dms len=%dms ratio=%.3f",
+                                    pos_ms, length_ms, remain_ratio
+                                )
                                 try:
                                     self._led.remaining_progress(remain_ratio, color=(255,255,255))
                                 except Exception:
-                                    pass
+                                    logger.exception("Progress updater: remaining_progress call failed")
                         else:
                             # Reset cache when not playing
                             if hasattr(self._led, '_last_remain_count'):
+                                logger.debug("Progress updater: clearing cache (state=%s)", state)
                                 delattr(self._led, '_last_remain_count')
                     time.sleep(0.2)
                 except Exception:
