@@ -219,38 +219,28 @@ class LEDManager:
         if not strip:
             return
         
+        remain_ratio = max(0.0, min(1.0, remain_ratio))
+        remain_leds = int(round(count * remain_ratio))
+        
+        # Only update if the number of lit LEDs changed
+        last_count = getattr(self, '_last_remain_count', None)
+        
+        if last_count == remain_leds:
+            return
+        
         # Try lock without blocking - if busy (e.g., flash_confirm), skip this update
         if not self._lock.acquire(blocking=False):
             return
         
         try:
-            remain_ratio = max(0.0, min(1.0, remain_ratio))
-            remain_leds = int(round(count * remain_ratio))
-            
-            # Only update if the number of lit LEDs changed
-            last_count = getattr(self, '_last_remain_count', None)
-            
-            if last_count == remain_leds:
-                return
-            
             self._last_remain_count = remain_leds
             
-            # Only change the LEDs that need updating
-            if last_count is None:
-                # First time - set all
-                for i in range(count):
-                    strip.setPixelColor(i, self._color(color) if i < remain_leds else self._color((0, 0, 0)))
-                strip.show()
-            elif last_count > remain_leds:
-                # Decreasing - turn off LEDs from remain_leds to last_count
-                for i in range(remain_leds, last_count):
-                    strip.setPixelColor(i, self._color((0, 0, 0)))
-                strip.show()
-            elif last_count < remain_leds:
-                # Increasing - turn on LEDs from last_count to remain_leds
-                for i in range(last_count, remain_leds):
-                    strip.setPixelColor(i, self._color(color))
-                strip.show()
+            # Set all pixel colors in memory first (no show yet)
+            for i in range(count):
+                strip.setPixelColor(i, self._color(color) if i < remain_leds else self._color((0, 0, 0)))
+            
+            # Single show() call to update hardware
+            strip.show()
         except Exception:
             logger.exception("LED: remaining_progress failed")
         finally:

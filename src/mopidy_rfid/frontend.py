@@ -222,7 +222,7 @@ class RFIDFrontend(_BaseClass):
                             if hasattr(self._led, '_last_remain_count'):
                                 logger.debug("Progress updater: clearing cache (state=%s)", state)
                                 delattr(self._led, '_last_remain_count')
-                    time.sleep(0.5)
+                    time.sleep(1.0)
                 except Exception:
                     time.sleep(0.5)
         self._progress_thread = threading.Thread(target=_run, name="led-progress", daemon=True)
