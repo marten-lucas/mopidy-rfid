@@ -244,3 +244,48 @@ class LEDManager:
             return Color(r, g, b)
         except Exception:
             return 0
+
+    # Standby comet animation (very low brightness, slow)
+    def start_standby_comet(self, color=(0, 8, 0), delay=0.08, trail=3):
+        strip = self._get_strip()
+        count = self._get_count()
+        if not strip:
+            return
+        self._standby_stop = threading.Event()
+        def _run():
+            idx = 0
+            off = self._color((0,0,0))
+            while not self._standby_stop.is_set():
+                try:
+                    for i in range(count):
+                        strip.setPixelColor(i, off)
+                    for t in range(trail+1):
+                        pos = (idx - t) % count
+                        # fade trail
+                        intensity = max(1, color[1] - t*2)
+                        strip.setPixelColor(pos, self._color((color[0], intensity, color[2])))
+                    strip.show()
+                    idx = (idx + 1) % count
+                    time.sleep(delay)
+                except Exception:
+                    time.sleep(0.1)
+        self._standby_thread = threading.Thread(target=_run, name='led-standby', daemon=True)
+        self._standby_thread.start()
+
+    def stop_standby_comet(self):
+        try:
+            if hasattr(self, '_standby_stop') and self._standby_stop:
+                self._standby_stop.set()
+        except Exception:
+            pass
+        # clear ring
+        try:
+            strip = self._get_strip()
+            count = self._get_count()
+            if strip:
+                off = self._color((0,0,0))
+                for i in range(count):
+                    strip.setPixelColor(i, off)
+                strip.show()
+        except Exception:
+            pass

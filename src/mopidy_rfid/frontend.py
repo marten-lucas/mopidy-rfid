@@ -105,6 +105,11 @@ class RFIDFrontend(_BaseClass):
                 self._led.set_button_led(True)
                 if led_enabled:
                     self._led.show_ready()
+                    # Start standby comet (very low brightness, slow)
+                    try:
+                        self._led.start_standby_comet(color=(0, 8, 0), delay=0.1, trail=2)
+                    except Exception:
+                        pass
         except Exception:
             logger.exception("Failed to initialize LED manager")
             self._led = None
@@ -144,6 +149,12 @@ class RFIDFrontend(_BaseClass):
             logger.exception("RFIDFrontend: LED farewell animation failed")
         # Stop remaining progress updater
         self._stop_progress_updater()
+        # Stop standby comet
+        try:
+            if self._led:
+                self._led.stop_standby_comet()
+        except Exception:
+            pass
         # Allow farewell sound to play before shutdown to avoid SEGV in teardown
         try:
             time.sleep(3)
@@ -379,3 +390,10 @@ class RFIDFrontend(_BaseClass):
             self._play_detect_then_execute(uri)
         except Exception:
             logger.exception("RFIDFrontend: failed detected-then-execute flow")
+        
+        # After queuing playback, restart standby after a short delay
+        try:
+            if self._led:
+                threading.Timer(5.0, lambda: self._led.start_standby_comet(color=(0,8,0), delay=0.1, trail=2)).start()
+        except Exception:
+            pass
