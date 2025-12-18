@@ -56,8 +56,20 @@ function updateStatus(connected) {
 
 function handleWebSocketMessage(data) {
   if (data.event === 'tag_scanned') {
+    const tagId = String(data.tag_id);
+    const action = data.action;
+    // Always show toast so user sees scans even outside the add-modal
+    let actionLabel = '';
+    if (action) {
+      if (action === 'play') actionLabel = ' — Play';
+      else if (action === 'toggle') actionLabel = ' — Toggle Play/Pause';
+      else if (action === 'stop') actionLabel = ' — Stop';
+      else actionLabel = ` — ${action}`;
+    }
+    M.toast({html: `Tag ${tagId} scanned${actionLabel}`, classes: 'green'});
+
     if (waitingForScan) {
-      handleScannedTag(String(data.tag_id), data.action);
+      handleScannedTag(tagId, action);
     }
   } else if (data.event === 'mappings_updated') {
     fetchMappings();
