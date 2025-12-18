@@ -214,18 +214,18 @@ class LEDManager:
             pass
 
     def remaining_progress(self, remain_ratio: float, color=(255, 255, 255)):
-        strip = self._get_strip()
-        count = self._get_count()
-        if not strip:
-            return
-        
+        """Update LED ring to show remaining track time. Only updates when LED count changes."""
         remain_ratio = max(0.0, min(1.0, remain_ratio))
+        count = self._led_count
         remain_leds = int(round(count * remain_ratio))
         
-        # Only update if the number of lit LEDs changed
+        # Early exit if nothing changed - BEFORE any strip access
         last_count = getattr(self, '_last_remain_count', None)
-        
         if last_count == remain_leds:
+            return
+        
+        strip = self._get_strip()
+        if not strip:
             return
         
         # Try lock without blocking - if busy (e.g., flash_confirm), skip this update
@@ -235,9 +235,12 @@ class LEDManager:
         try:
             self._last_remain_count = remain_leds
             
-            # Set all pixel colors in memory first (no show yet)
+            # Set all LEDs at once - like in your timer_effect example
             for i in range(count):
-                strip.setPixelColor(i, self._color(color) if i < remain_leds else self._color((0, 0, 0)))
+                if i < remain_leds:
+                    strip.setPixelColor(i, self._color(color))
+                else:
+                    strip.setPixelColor(i, self._color((0, 0, 0)))
             
             # Single show() call to update hardware
             strip.show()
