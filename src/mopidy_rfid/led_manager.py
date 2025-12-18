@@ -222,6 +222,14 @@ class LEDManager:
         try:
             remain_ratio = max(0.0, min(1.0, remain_ratio))
             remain_leds = int(round(count * remain_ratio))
+            
+            # Only update if the number of lit LEDs changed
+            last_count = getattr(self, '_last_remain_count', -1)
+            if last_count == remain_leds:
+                return
+            
+            self._last_remain_count = remain_leds
+            
             for i in range(count):
                 strip.setPixelColor(i, self._color(color) if i < remain_leds else self._color((0, 0, 0)))
             strip.show()
