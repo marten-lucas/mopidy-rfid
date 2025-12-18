@@ -218,29 +218,12 @@ class LEDManager:
         count = self._get_count()
         if not strip:
             return
+        self._apply_brightness()
         try:
-            r = max(0.0, min(1.0, remain_ratio))
-            # Use floor to ensure monotonic decrease and avoid 0/1 toggling at the end
-            remain_leds = int(math.floor(count * r + 1e-6))
-            last = getattr(self, "_last_remain_leds", None)
-            if last == remain_leds:
-                return
-            setattr(self, "_last_remain_leds", remain_leds)
-            
-            # Only update the LEDs that changed to avoid flickering
-            # Turn off LEDs that should now be off (from last to remain_leds)
-            if last is not None and last > remain_leds:
-                for i in range(remain_leds, last):
-                    strip.setPixelColor(i, self._color((0, 0, 0)))
-            # Turn on LEDs that should now be on (if we're increasing, though we shouldn't be)
-            elif last is not None and last < remain_leds:
-                for i in range(last, remain_leds):
-                    strip.setPixelColor(i, self._color(color))
-            else:
-                # First run, set all
-                for i in range(count):
-                    strip.setPixelColor(i, self._color(color) if i < remain_leds else self._color((0, 0, 0)))
-            
+            remain_ratio = max(0.0, min(1.0, remain_ratio))
+            remain_leds = int(round(count * remain_ratio))
+            for i in range(count):
+                strip.setPixelColor(i, self._color(color) if i < remain_leds else self._color((0, 0, 0)))
             strip.show()
         except Exception:
             pass
@@ -254,61 +237,67 @@ class LEDManager:
     _standby_thread = None
 
     def start_standby_comet(self, color=(0, 8, 0), delay=5.0, trail=2):
+        """Start a slow-moving comet animation for standby mode."""
         strip = self._get_strip()
         count = self._get_count()
         if not strip:
             return
-        with self._standby_lock:
-            # Stop existing
-            if self._standby_stop:
+        
+        # Use simple flag instead of lock to avoid complexity
+        if getattr(self, '_standby_running', False):
+            return  # Already running
+        
+        self._standby_stop = threading.Event()
+        self._standby_running = True
+        stop_ev = self._standby_stop
+        
+        def _run():
+            idx = 0
+            off = self._color((0, 0, 0))
+            while not stop_ev.is_set():
                 try:
-                    self._standby_stop.set()
-                except Exception:
-                    pass
-            self._standby_stop = threading.Event()
-            stop_ev = self._standby_stop
-            # Create thread only once
-            if self._standby_thread and self._standby_thread.is_alive():
-                return
-            def _run():
-                idx = 0
-                off = self._color((0,0,0))
-                while not stop_ev.is_set():
-                    try:
-                        for i in range(count):
-                            strip.setPixelColor(i, off)
-                        for t in range(trail+1):
-                            pos = (idx - t) % count
-                            intensity = max(1, color[1] - t*2)
-                            strip.setPixelColor(pos, self._color((color[0], intensity, color[2])))
-                        strip.show()
-                        idx = (idx + 1) % count
-                        # Wait delay seconds before next step
-                        step_delay = delay / 10.0  # Break into smaller chunks for responsiveness
-                        for _ in range(10):
-                            if stop_ev.is_set():
-                                break
-                            time.sleep(step_delay)
-                    except Exception:
+                    # Clear all
+                    for i in range(count):
+                        strip.setPixelColor(i, off)
+                    # Draw comet head and trail
+                    for t in range(trail + 1):
+                        pos = (idx - t) % count
+                        intensity = max(1, color[1] - t * 2)
+                        strip.setPixelColor(pos, self._color((color[0], intensity, color[2])))
+                    strip.show()
+                    
+                    # Move to next position
+                    idx = (idx + 1) % count
+                    
+                    # Wait for delay with responsiveness checks
+                    for _ in range(int(delay * 2)):
+                        if stop_ev.is_set():
+                            break
                         time.sleep(0.5)
-            self._standby_thread = threading.Thread(target=_run, name='led-standby', daemon=True)
-            self._standby_thread.start()
+                except Exception:
+                    time.sleep(0.5)
+            
+            # Clean up on exit
+            self._standby_running = False
+        
+        self._standby_thread = threading.Thread(target=_run, name='led-standby', daemon=True)
+        self._standby_thread.start()
 
     def stop_standby_comet(self):
-        with self._standby_lock:
-            try:
-                if self._standby_stop:
-                    self._standby_stop.set()
-            except Exception:
-                pass
-            self._standby_stop = None
-            self._standby_thread = None
-        # clear ring
+        """Stop the standby comet animation and clear LEDs."""
+        try:
+            if hasattr(self, '_standby_stop') and self._standby_stop:
+                self._standby_stop.set()
+                self._standby_running = False
+        except Exception:
+            pass
+        
+        # Clear the ring
         try:
             strip = self._get_strip()
             count = self._get_count()
             if strip:
-                off = self._color((0,0,0))
+                off = self._color((0, 0, 0))
                 for i in range(count):
                     strip.setPixelColor(i, off)
                 strip.show()

@@ -182,15 +182,10 @@ class RFIDFrontend(_BaseClass):
             last_state = None
             while not self._progress_stop.is_set():
                 try:
-                    if self._led and self.core is not None:
+                    if self._led and self._led_cfg.get("remaining") and self.core is not None:
                         state = self.core.playback.get_state().get()
                         
-                        # Reset LED cache when state changes
-                        if state != last_state:
-                            if hasattr(self._led, '_last_remain_leds'):
-                                delattr(self._led, '_last_remain_leds')
-                            last_state = state
-                        
+                        # Manage standby comet based on playback state
                         if state == "playing":
                             try:
                                 self._led.stop_standby_comet()
@@ -201,8 +196,9 @@ class RFIDFrontend(_BaseClass):
                                 self._led.start_standby_comet(color=(0,8,0), delay=5.0, trail=2)
                             except Exception:
                                 pass
-                        if self._led_cfg.get("remaining") and state == "playing":
-                            tl = self.core.tracklist.get_tracks().get()
+                        
+                        # Track remaining time only when playing
+                        if state == "playing":
                             cp = self.core.playback.get_current_tl_track().get()
                             pos_ms = self.core.playback.get_time_position().get()
                             length_ms = None
@@ -217,21 +213,9 @@ class RFIDFrontend(_BaseClass):
                                     self._led.remaining_progress(remain_ratio, color=(255,255,255))
                                 except Exception:
                                     pass
-                        elif not state == "playing":
-                            # Clear LEDs when not playing
-                            if hasattr(self._led, '_last_remain_leds'):
-                                try:
-                                    strip = self._led._get_strip()
-                                    count = self._led._get_count()
-                                    if strip:
-                                        for i in range(count):
-                                            strip.setPixelColor(i, self._led._color((0,0,0)))
-                                        strip.show()
-                                except Exception:
-                                    pass
-                    time.sleep(0.3)
+                    time.sleep(0.2)
                 except Exception:
-                    time.sleep(0.3)
+                    time.sleep(0.5)
         self._progress_thread = threading.Thread(target=_run, name="led-progress", daemon=True)
         self._progress_thread.start()
 
