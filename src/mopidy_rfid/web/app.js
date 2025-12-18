@@ -54,6 +54,64 @@ function updateStatus(connected) {
   }
 }
 
+// Robust toast helper: use M.toast when available, else fallback to a simple DOM toast
+function showToast(html, classes = '') {
+  try {
+    if (window.M && M.toast) {
+      M.toast({html, classes});
+      return;
+    }
+  } catch (e) {
+    // fall back
+  }
+
+  // Fallback custom toast
+  try {
+    let container = document.getElementById('custom-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'custom-toast-container';
+      Object.assign(container.style, {
+        position: 'fixed',
+        top: '16px',
+        right: '16px',
+        zIndex: '2147483647',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+        pointerEvents: 'none'
+      });
+      // append directly to <body> to avoid modal scoping
+      (document.body || document.documentElement).appendChild(container);
+    }
+    const el = document.createElement('div');
+    el.className = 'custom-toast ' + classes;
+    el.textContent = typeof html === 'string' ? html : JSON.stringify(html);
+    Object.assign(el.style, {
+      background: '#323232',
+      color: 'white',
+      padding: '10px 14px',
+      borderRadius: '4px',
+      boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+      opacity: '0',
+      transition: 'opacity 0.25s ease',
+      pointerEvents: 'auto'
+    });
+    container.appendChild(el);
+    // Force reflow
+    void el.offsetWidth;
+    el.style.opacity = '1';
+    setTimeout(() => {
+      el.style.opacity = '0';
+      setTimeout(() => {
+        try { container.removeChild(el); } catch (e) {}
+      }, 300);
+    }, 3500);
+  } catch (e) {
+    console.log('Toast:', html);
+  }
+}
+
 function handleWebSocketMessage(data) {
   if (data.event === 'tag_scanned') {
     const tagId = String(data.tag_id);
@@ -66,7 +124,7 @@ function handleWebSocketMessage(data) {
       else if (action === 'stop') actionLabel = ' — Stop';
       else actionLabel = ` — ${action}`;
     }
-    M.toast({html: `Tag ${tagId} scanned${actionLabel}`, classes: 'green'});
+    showToast(`Tag ${tagId} scanned${actionLabel}`, 'green');
 
     if (waitingForScan) {
       handleScannedTag(tagId, action);
@@ -393,7 +451,7 @@ function handleScannedTag(tagId, action) {
     else if (action === 'stop') actionLabel = ' — Stop';
     else actionLabel = ` — ${action}`;
   }
-  M.toast({html: `Tag ${tagId} scanned${actionLabel}`, classes: 'green'});
+  showToast(`Tag ${tagId} scanned${actionLabel}`, 'green');
   
   // Check if tag already exists
   fetch('/rfid/api/mappings')
