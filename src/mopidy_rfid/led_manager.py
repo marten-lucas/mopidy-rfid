@@ -283,11 +283,12 @@ class LEDManager:
                             strip.setPixelColor(pos, self._color((color[0], intensity, color[2])))
                         strip.show()
                         idx = (idx + 1) % count
-                        # very slow movement: change every 5s
+                        # Wait delay seconds before next step
+                        step_delay = delay / 10.0  # Break into smaller chunks for responsiveness
                         for _ in range(10):
                             if stop_ev.is_set():
                                 break
-                            time.sleep(0.5)
+                            time.sleep(step_delay)
                     except Exception:
                         time.sleep(0.5)
             self._standby_thread = threading.Thread(target=_run, name='led-standby', daemon=True)

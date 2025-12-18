@@ -179,10 +179,18 @@ class RFIDFrontend(_BaseClass):
             return
         self._progress_stop.clear()
         def _run():
+            last_state = None
             while not self._progress_stop.is_set():
                 try:
                     if self._led and self.core is not None:
                         state = self.core.playback.get_state().get()
+                        
+                        # Reset LED cache when state changes
+                        if state != last_state:
+                            if hasattr(self._led, '_last_remain_leds'):
+                                delattr(self._led, '_last_remain_leds')
+                            last_state = state
+                        
                         if state == "playing":
                             try:
                                 self._led.stop_standby_comet()
@@ -207,6 +215,18 @@ class RFIDFrontend(_BaseClass):
                                 remain_ratio = max(0.0, min(1.0, 1.0 - (pos_ms/float(length_ms))))
                                 try:
                                     self._led.remaining_progress(remain_ratio, color=(255,255,255))
+                                except Exception:
+                                    pass
+                        elif not state == "playing":
+                            # Clear LEDs when not playing
+                            if hasattr(self._led, '_last_remain_leds'):
+                                try:
+                                    strip = self._led._get_strip()
+                                    count = self._led._get_count()
+                                    if strip:
+                                        for i in range(count):
+                                            strip.setPixelColor(i, self._led._color((0,0,0)))
+                                        strip.show()
                                 except Exception:
                                     pass
                     time.sleep(0.3)
