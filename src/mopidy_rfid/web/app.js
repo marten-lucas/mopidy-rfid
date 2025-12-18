@@ -238,16 +238,19 @@ function saveMapping(tag, uri, description) {
     body: JSON.stringify({tag, uri, description})
   })
   .then(r => {
-    if (r.ok) {
-      M.toast({html: 'Mapping saved', classes: 'green'});
-      fetchMappings();
-      M.Modal.getInstance(document.getElementById('mapping-modal')).close();
-    } else {
+    if (!r.ok) {
       throw new Error('Save failed');
     }
+    // Close modal and refresh mappings before parsing JSON
+    try {
+      const modal = M.Modal.getInstance(document.getElementById('mapping-modal'));
+      if (modal) modal.close();
+    } catch (e) {}
+    fetchMappings();
+    // attempt to parse JSON if present
+    return r.json ? r.json() : Promise.resolve({});
   })
-  .then(r=> r.json ? r.json() : Promise.resolve({ok:r.ok}))
-  .then(()=>{
+  .then(() => {
     M.toast({html:'Saved', classes:'green'});
     document.getElementById('tag-input').value='';
     waitingForScan = true;
