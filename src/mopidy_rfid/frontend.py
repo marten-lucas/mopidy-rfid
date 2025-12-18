@@ -306,19 +306,25 @@ class RFIDFrontend(_BaseClass):
         except Exception:
             uri_det = ""
         try:
-            self.core.tracklist.clear().get()
-            # Handle special commands first so we don't queue the detected sound for them
+            # Handle special commands first BEFORE clearing tracklist
             if mapped_uri == "TOGGLE_PLAY":
-                # Toggle current playback state without adding detected sound
+                # Toggle current playback state without adding detected sound or clearing tracklist
                 state = self.core.playback.get_state().get()
+                logger.info("RFIDFrontend: TOGGLE_PLAY - current state: %s", state)
                 if state == "playing":
                     self.core.playback.pause().get()
+                    logger.info("RFIDFrontend: paused playback")
                 elif state == "paused":
                     self.core.playback.resume().get()
+                    logger.info("RFIDFrontend: resumed playback")
                 else:
                     # If stopped, start playing current tracklist
                     self.core.playback.play().get()
+                    logger.info("RFIDFrontend: started playback from stopped")
                 return
+            
+            # For all other actions, clear tracklist
+            self.core.tracklist.clear().get()
             if mapped_uri == "STOP":
                 # Stop playback immediately; don't queue detected sound
                 self.core.playback.stop().get()
