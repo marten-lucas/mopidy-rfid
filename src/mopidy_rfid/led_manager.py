@@ -235,6 +235,12 @@ class LEDManager:
         if not strip:
             return
 
+        # Ensure configured brightness is applied before drawing
+        try:
+            self._apply_brightness()
+        except Exception:
+            pass
+
         # Acquire lock (blocking) to serialize with other animations
         with self._lock:
             # Re-check under lock
@@ -271,6 +277,12 @@ class LEDManager:
         count = self._get_count()
         if not strip:
             return
+
+        # Apply configured brightness for standby comet
+        try:
+            self._apply_brightness()
+        except Exception:
+            pass
 
         # Use simple flag instead of lock to avoid complexity
         if getattr(self, '_standby_running', False):
@@ -339,16 +351,22 @@ class LEDManager:
         count = self._get_count()
         if not strip:
             return
-        
+
+        # Apply configured brightness for paused animation
+        try:
+            self._apply_brightness()
+        except Exception:
+            pass
+
         # Stop if already running
         if getattr(self, '_paused_running', False):
             return
-        
+
         self._paused_stop = threading.Event()
         self._paused_running = True
         self._paused_remain_leds = remain_leds
         stop_ev = self._paused_stop
-        
+
         def _run():
             idx = 0
             while not stop_ev.is_set():
@@ -366,17 +384,17 @@ class LEDManager:
                             scan_pos = idx % remain
                             strip.setPixelColor(scan_pos, self._color(sweep_color))
                         strip.show()
-                    
+
                     idx = (idx + 1) % max(1, remain)
                     time.sleep(0.15)
                 except Exception:
                     time.sleep(0.15)
-            
+
             self._paused_running = False
-        
+
         self._paused_thread = threading.Thread(target=_run, name='led-paused', daemon=True)
         self._paused_thread.start()
-    
+
     def stop_paused_sweep(self):
         """Stop the paused sweep animation."""
         try:
@@ -394,7 +412,7 @@ class LEDManager:
                 self._paused_running = False
         except Exception:
             pass
-    
+
     def update_paused_remain(self, remain_leds: int):
         """Update the number of remaining LEDs for paused animation."""
         if getattr(self, '_paused_running', False):

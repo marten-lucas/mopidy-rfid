@@ -72,7 +72,7 @@ class RFIDFrontend(_BaseClass):
             logger.exception("RFIDFrontend: failed to play welcome sound")
         # LED welcome animation if enabled (may run after hardware init)
         try:
-            if self._led and self._led_cfg.get("welcome"):
+            if self._led and getattr(self._led, '_enabled', False) and self._led_cfg.get("welcome"):
                 # Prefer animated welcome
                 try:
                     self._led.welcome_scan(color=(0,255,0), delay=0.05)
@@ -101,7 +101,7 @@ class RFIDFrontend(_BaseClass):
                 brightness=led_brightness,
                 button_pin=pin_button_led,
             )
-            if self._led:
+            if self._led and getattr(self._led, '_enabled', False):
                 try:
                     self._led.stop_standby_comet()
                 except Exception:
@@ -154,7 +154,7 @@ class RFIDFrontend(_BaseClass):
         self._stop_progress_updater()
         # Stop standby comet
         try:
-            if self._led:
+            if self._led and getattr(self._led, '_enabled', False):
                 self._led.stop_standby_comet()
         except Exception:
             pass
@@ -182,7 +182,7 @@ class RFIDFrontend(_BaseClass):
             last_state = None
             while not self._progress_stop.is_set():
                 try:
-                    if self._led and self._led_cfg.get("remaining") and self.core is not None:
+                    if self._led and getattr(self._led, '_enabled', False) and self._led_cfg.get("remaining") and self.core is not None:
                         state = self.core.playback.get_state().get()
 
                         # Act only on state changes to avoid repeated start/stop calls
@@ -418,7 +418,7 @@ class RFIDFrontend(_BaseClass):
         
         # LED detected confirm
         try:
-            if self._led:
+            if self._led and getattr(self._led, '_enabled', False):
                 self._led.flash_confirm()
         except Exception:
             logger.exception("LED flash failed")
