@@ -232,6 +232,7 @@ function highlightAndEditTag(tagId) {
 }
 
 function saveMapping(tag, uri, description) {
+  const scanNext = document.getElementById('scan-next-checkbox').checked;
   fetch('/rfid/api/mappings', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -252,9 +253,13 @@ function saveMapping(tag, uri, description) {
   })
   .then(() => {
     M.toast({html:'Saved', classes:'green'});
-    document.getElementById('tag-input').value='';
-    waitingForScan = true;
-    startScanPolling();
+    if (scanNext) {
+      document.getElementById('tag-input').value='';
+      waitingForScan = true;
+      startScanPolling();
+      // Re-open modal for next tag
+      setTimeout(() => openAddModal(), 100);
+    }
   })
   .catch(e => {
     console.error(e);
@@ -280,13 +285,17 @@ function deleteMapping(tag) {
 
 let allItems = [];
 let filteredItems = [];
+let itemsLoaded = false;
 
 function loadItemsByType(type) {
   const container = document.getElementById('items-list');
   const loader = document.getElementById('loading-indicator');
+  const loadBtn = document.getElementById('load-items-btn');
   
   container.innerHTML = '';
   loader.style.display = 'block';
+  loadBtn.style.display = 'none';
+  itemsLoaded = false;
   
   console.log('Loading items of type:', type);
   
@@ -296,11 +305,13 @@ function loadItemsByType(type) {
       loader.style.display = 'none';
       allItems = data.items || [];
       filteredItems = allItems;
+      itemsLoaded = true;
       console.log('Loaded items:', allItems.length);
       renderItems(filteredItems);
     })
     .catch(e => {
       loader.style.display = 'none';
+      loadBtn.style.display = 'block';
       console.error('Browse error:', e);
       M.toast({html: 'Failed to load items', classes: 'red'});
     });
@@ -374,8 +385,11 @@ function openEditModal(tag, mapping) {
   document.getElementById('tag-input').value = tag;
   document.getElementById('description-input').value = description;
   document.getElementById('tag-input').removeAttribute('disabled');
+  document.getElementById('tag-input').removeAttribute('readonly');
   document.getElementById('tag-helper').textContent = '';
+  document.getElementById('scan-next-checkbox').checked = false;
   waitingForScan = false;
+  stopScanPolling();
   
   // Set action type
   if (['TOGGLE_PLAY', 'STOP'].includes(uri)) {
@@ -408,12 +422,17 @@ function resetModal() {
   document.getElementById('type-select').value = '';
   document.getElementById('filter-query').value = '';
   document.getElementById('selected-uri').value = '';
+  document.getElementById('paste-uri-input').value = '';
+  document.getElementById('paste-mode-toggle').checked = false;
+  document.getElementById('paste-uri-field').style.display = 'none';
   document.getElementById('items-list').innerHTML = '';
   document.getElementById('items-container').style.display = 'none';
   document.getElementById('save-mapping').classList.add('disabled');
   document.getElementById('tag-input').setAttribute('disabled', 'disabled');
+  document.getElementById('scan-next-checkbox').checked = true;
   allItems = [];
   filteredItems = [];
+  itemsLoaded = false;
   M.updateTextFields();
   M.FormSelect.init(document.querySelectorAll('select'));
 }
@@ -471,20 +490,28 @@ function updateActionTypeUI() {
   const type = document.getElementById('type-select').value;
   const itemsContainer = document.getElementById('items-container');
   const selectedUri = document.getElementById('selected-uri').value;
+  const pasteMode = document.getElementById('paste-mode-toggle').checked;
   
-  if (['STOP', 'TOGGLE_PLAY'].includes(type)) {
+  if (pasteMode) {
     itemsContainer.style.display = 'none';
-    document.getElementById('selected-uri').value = type;
-    document.getElementById('save-mapping').classList.remove('disabled');
-  } else if (type) {
+    return;
+  }
+  
+  if (type) {
     itemsContainer.style.display = 'block';
     document.getElementById('filter-query').value = '';
     if (!selectedUri || ['STOP', 'TOGGLE_PLAY'].includes(selectedUri)) {
       document.getElementById('selected-uri').value = '';
       document.getElementById('save-mapping').classList.add('disabled');
     }
-    // Load items for this type
-    loadItemsByType(type);
+    // Show load button instead of auto-loading
+    const loadBtn = document.getElementById('load-items-btn');
+    const loader = document.getElementById('loading-indicator');
+    if (!itemsLoaded) {
+      loadBtn.style.display = 'block';
+      loader.style.display = 'none';
+      document.getElementById('items-list').innerHTML = '<tr><td colspan="2" class="center grey-text">Click "Load Items" to browse</td></tr>';
+    }
   } else {
     itemsContainer.style.display = 'none';
   }
@@ -631,6 +658,56 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('filter-query').addEventListener('input', (e) => {
     const query = e.target.value.trim();
     filterItems(query);
+  });
+  
+  // Paste mode toggle
+  document.getElementById('paste-mode-toggle').addEventListener('change', (e) => {
+    const pasteField = document.getElementById('paste-uri-field');
+    const typeSelect = document.getElementById('type-select');
+    const itemsContainer = document.getElementById('items-container');
+    
+    if (e.target.checked) {
+      pasteField.style.display = 'block';
+      itemsContainer.style.display = 'none';
+      typeSelect.disabled = true;
+    } else {
+      pasteField.style.display = 'none';
+      typeSelect.disabled = false;
+      updateActionTypeUI();
+    }
+    M.updateTextFields();
+  });
+  
+  // Paste URI input
+  document.getElementById('paste-uri-input').addEventListener('input', (e) => {
+    const uri = e.target.value.trim();
+    document.getElementById('selected-uri').value = uri;
+    if (uri) {
+      document.getElementById('save-mapping').classList.remove('disabled');
+    } else {
+      document.getElementById('save-mapping').classList.add('disabled');
+    }
+  });
+  
+  // Load items button
+  document.getElementById('load-items-btn').addEventListener('click', () => {
+    const type = document.getElementById('type-select').value;
+    if (type) {
+      loadItemsByType(type);
+    }
+  });
+  
+  // Common action buttons
+  document.querySelectorAll('.common-action-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const action = e.target.getAttribute('data-action');
+      document.getElementById('selected-uri').value = action;
+      document.getElementById('save-mapping').classList.remove('disabled');
+      // Highlight the selected button
+      document.querySelectorAll('.common-action-btn').forEach(b => b.classList.remove('teal'));
+      e.target.classList.add('teal');
+      M.toast({html: `Selected: ${action}`, classes: 'blue'});
+    });
   });
   
   // Settings tab event listeners

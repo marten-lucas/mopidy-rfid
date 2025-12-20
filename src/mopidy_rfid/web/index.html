@@ -195,18 +195,41 @@
           <input id="description-input" type="text">
           <label for="description-input">Description (optional)</label>
         </div>
+        
+        <!-- Common Actions Quick Buttons -->
+        <div class="col s12" id="common-actions" style="margin-bottom: 15px;">
+          <p style="font-weight: 500; margin-bottom: 8px;">Quick Actions</p>
+          <a class="btn-small waves-effect common-action-btn" data-action="TOGGLE_PLAY" style="margin-right: 5px; margin-bottom: 5px;">Toggle Play/Pause</a>
+          <a class="btn-small waves-effect common-action-btn" data-action="STOP" style="margin-right: 5px; margin-bottom: 5px;">Stop</a>
+        </div>
+        
+        <!-- Paste URI Option -->
+        <div class="col s12" style="margin-bottom: 10px;">
+          <p>
+            <label>
+              <input type="checkbox" id="paste-mode-toggle"/>
+              <span>Paste URI directly</span>
+            </label>
+          </p>
+        </div>
+        <div class="input-field col s12" id="paste-uri-field" style="display: none;">
+          <input id="paste-uri-input" type="text">
+          <label for="paste-uri-input">Paste URI (e.g., spotify:track:...)</label>
+        </div>
+        
         <div class="input-field col s12">
           <select id="type-select">
             <option value="" disabled selected>Choose action type</option>
             <option value="track">Play Track</option>
             <option value="album">Play Album</option>
             <option value="playlist">Play Playlist</option>
-            <option value="STOP">Stop Playback</option>
-            <option value="TOGGLE_PLAY">Toggle Play/Pause</option>
           </select>
           <label>Action Type</label>
         </div>
         <div id="items-container" style="display:none;">
+          <div style="margin-bottom: 10px;">
+            <a id="load-items-btn" class="btn-small waves-effect">Load Items</a>
+          </div>
           <div class="input-field">
             <input id="filter-query" type="text" placeholder="Filter by name...">
             <label for="filter-query">Filter</label>
@@ -241,6 +264,12 @@
       </div>
     </div>
     <div class="modal-footer">
+      <div style="float: left; margin-top: 10px;">
+        <label>
+          <input type="checkbox" id="scan-next-checkbox" checked/>
+          <span>Scan next tag after save</span>
+        </label>
+      </div>
       <a href="#!" id="save-mapping" class="waves-effect waves-green btn disabled">Save</a>
       <a href="#!" class="modal-close waves-effect btn-flat">Cancel</a>
     </div>
