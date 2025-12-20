@@ -126,13 +126,18 @@ function handleWebSocketMessage(data) {
     }
     showToast(`Tag ${tagId} scanned${actionLabel}`, 'green');
 
-    if (waitingForScan) {
+    // Check if add modal is open
+    const modal = M.Modal.getInstance(document.getElementById('mapping-modal'));
+    const isModalOpen = modal && modal.isOpen;
+
+    if (waitingForScan || isModalOpen) {
+      // Modal is open or we're waiting for a scan - handle the tag
       handleScannedTag(tagId, action);
     } else {
       // Check if auto-add mode is enabled and tag is unknown
       const autoAddEnabled = document.getElementById('auto-add-checkbox')?.checked;
-      if (autoAddEnabled && !action) {
-        // Tag is unknown (no action), open add modal automatically
+      if (autoAddEnabled) {
+        // Check if tag exists in mappings
         fetch('/rfid/api/mappings')
           .then(r => r.json())
           .then(mappings => {
@@ -489,17 +494,15 @@ function handleScannedTag(tagId, action) {
   document.getElementById('tag-input').value = tagId;
   document.getElementById('tag-input').removeAttribute('disabled');
   document.getElementById('tag-helper').textContent = 'Tag scanned successfully';
-  waitingForScan = false;
-  stopScanPolling();
-  M.updateTextFields();
-  let actionLabel = '';
-  if (action) {
-    if (action === 'play') actionLabel = ' — Play';
-    else if (action === 'toggle') actionLabel = ' — Toggle Play/Pause';
-    else if (action === 'stop') actionLabel = ' — Stop';
-    else actionLabel = ` — ${action}`;
+  
+  // Don't stop scanning when modal is open - allow rescanning
+  const modal = M.Modal.getInstance(document.getElementById('mapping-modal'));
+  if (!modal || !modal.isOpen) {
+    waitingForScan = false;
+    stopScanPolling();
   }
-  showToast(`Tag ${tagId} scanned${actionLabel}`, 'green');
+  
+  M.updateTextFields();
   
   // Check if tag already exists
   fetch('/rfid/api/mappings')
@@ -507,7 +510,18 @@ function handleScannedTag(tagId, action) {
     .then(mappings => {
       if (mappings[tagId]) {
         document.getElementById('tag-helper').textContent = 'Tag already exists - editing existing mapping';
-        openEditModal(tagId, mappings[tagId]);
+        // Only open edit modal if we're not already in the add modal
+        const modalTitle = document.getElementById('modal-title').textContent;
+        if (modalTitle !== 'Add Mapping') {
+          openEditModal(tagId, mappings[tagId]);
+        } else {
+          // Show warning in add modal that tag exists
+          document.getElementById('tag-helper').textContent = 'Warning: Tag already exists! Saving will overwrite.';
+          document.getElementById('tag-helper').style.color = '#ff9800';
+        }
+      } else {
+        document.getElementById('tag-helper').textContent = 'Tag scanned successfully';
+        document.getElementById('tag-helper').style.color = '';
       }
     });
 }
