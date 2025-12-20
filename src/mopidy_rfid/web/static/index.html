@@ -11,6 +11,16 @@
 <body>
   <nav><div class="nav-wrapper teal"><a href="#" class="brand-logo center">mopidy-rfid</a></div></nav>
   <div class="container" style="padding-top:20px">
+    <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+      <div id="status-badge" class="chip">
+        <i class="material-icons tiny">circle</i>
+        <span id="status-text">Connecting...</span>
+      </div>
+      <label style="margin: 0;">
+        <input type="checkbox" id="auto-add-checkbox"/>
+        <span>Auto add new tags</span>
+      </label>
+    </div>
     <div class="row">
       <div class="col s8">
         <h5>Mappings</h5>

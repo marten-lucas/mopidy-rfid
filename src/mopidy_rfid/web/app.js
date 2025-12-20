@@ -128,6 +128,29 @@ function handleWebSocketMessage(data) {
 
     if (waitingForScan) {
       handleScannedTag(tagId, action);
+    } else {
+      // Check if auto-add mode is enabled and tag is unknown
+      const autoAddEnabled = document.getElementById('auto-add-checkbox')?.checked;
+      if (autoAddEnabled && !action) {
+        // Tag is unknown (no action), open add modal automatically
+        fetch('/rfid/api/mappings')
+          .then(r => r.json())
+          .then(mappings => {
+            if (!mappings[tagId]) {
+              showToast(`Unknown tag detected - opening add form`, 'blue');
+              openAddModal();
+              // Immediately set the tag
+              setTimeout(() => {
+                document.getElementById('tag-input').value = tagId;
+                document.getElementById('tag-input').removeAttribute('disabled');
+                document.getElementById('tag-helper').textContent = 'Tag scanned successfully';
+                waitingForScan = false;
+                stopScanPolling();
+                M.updateTextFields();
+              }, 100);
+            }
+          });
+      }
     }
   } else if (data.event === 'mappings_updated') {
     fetchMappings();
@@ -370,9 +393,12 @@ function openAddModal() {
   const tagInput = document.getElementById('tag-input');
   tagInput.value = '';
   tagInput.setAttribute('placeholder', 'Scan a tag...');
+  tagInput.setAttribute('disabled', 'disabled');
+  tagInput.setAttribute('readonly', 'readonly');
   document.getElementById('tag-helper').textContent = 'Please scan a tag to continue';
   waitingForScan = true;
   startScanPolling();
+  M.updateTextFields();
   M.Modal.getInstance(document.getElementById('mapping-modal')).open();
 }
 

@@ -28,11 +28,15 @@
       <!-- Mappings Tab -->
       <div id="mappings-tab" class="col s12">
         <div style="padding-top:20px">
-          <div style="margin-bottom: 10px;">
+          <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
             <div id="status-badge" class="chip">
               <i class="material-icons tiny">circle</i>
               <span id="status-text">Connecting...</span>
             </div>
+            <label style="margin: 0;">
+              <input type="checkbox" id="auto-add-checkbox"/>
+              <span>Auto add new tags</span>
+            </label>
           </div>
           <table class="striped highlight">
             <thead>
