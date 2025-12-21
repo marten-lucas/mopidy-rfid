@@ -670,7 +670,12 @@ function saveLedSettings() {
     {key:'farewell', value: document.getElementById('led-farewell').checked},
     {key:'remaining', value: document.getElementById('led-remaining').checked},
   ];
-  Promise.all(pairs.map(p=> fetch('/rfid/api/led-settings', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(p)})))
+  const brightness = parseInt(document.getElementById('brightness-slider').value);
+  const idleBrightness = parseInt(document.getElementById('idle-brightness-slider').value);
+  Promise.all([
+    ...pairs.map(p=> fetch('/rfid/api/led-settings', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(p)})),
+    fetch('/rfid/api/led-brightness', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({brightness, idle_brightness: idleBrightness})})
+  ])
     .then(()=> M.toast({html:'LED settings saved', classes:'green'}))
     .catch(()=> M.toast({html:'Save failed', classes:'red'}));
 }
@@ -854,6 +859,24 @@ document.addEventListener('DOMContentLoaded', () => {
   // LED settings
   loadLedSettings();
   document.getElementById('led-save').addEventListener('click', saveLedSettings);
+  document.getElementById('led-reset').addEventListener('click', () => {
+    fetch('/rfid/api/led-brightness', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({reset: true})
+    }).then(r => r.json()).then(data => {
+      const brightness = data.brightness || 60;
+      const idleBrightness = data.idle_brightness || 10;
+      document.getElementById('brightness-slider').value = brightness;
+      document.getElementById('brightness-value').textContent = brightness;
+      document.getElementById('idle-brightness-slider').value = idleBrightness;
+      document.getElementById('idle-brightness-value').textContent = idleBrightness;
+      M.Range.init(document.querySelectorAll('input[type=range]')); // refresh UI
+      M.toast({html: 'LED brightness reset to config', classes: 'green'});
+    }).catch(() => {
+      M.toast({html: 'Reset failed', classes: 'red'});
+    });
+  });
   
   // Initialize Materialize range sliders
   const sliders = document.querySelectorAll('input[type=range]');

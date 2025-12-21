@@ -349,13 +349,10 @@ class LedBrightnessHandler(tornado.web.RequestHandler):
                 self.set_status(503)
                 self.write({"brightness": 60, "idle_brightness": 10, "error": "frontend not available"})
                 return
-            led = self.frontend.proxy().get_led_manager().get()
-            if led and hasattr(led, 'get_brightness'):
-                brightness = led.get_brightness()
-                idle_brightness = led.get_idle_brightness() if hasattr(led, 'get_idle_brightness') else 10
-                self.write({"brightness": brightness, "idle_brightness": idle_brightness})
-            else:
-                self.write({"brightness": 60, "idle_brightness": 10, "error": "LED not available"})
+            proxy = self.frontend.proxy()
+            brightness = proxy.get_led_brightness().get()
+            idle_brightness = proxy.get_led_idle_brightness().get()
+            self.write({"brightness": brightness, "idle_brightness": idle_brightness})
         except Exception:
             logger.exception("http: get led brightness failed")
             self.set_status(500)
@@ -370,26 +367,36 @@ class LedBrightnessHandler(tornado.web.RequestHandler):
             data = json.loads(self.request.body.decode("utf-8"))
             brightness = data.get("brightness")
             idle_brightness = data.get("idle_brightness")
-            
-            led = self.frontend.proxy().get_led_manager().get()
-            if not led:
-                self.write({"ok": False, "error": "LED not available"})
-                return
-                
+            reset = bool(data.get("reset", False))
             result = {"ok": True}
-            
-            if brightness is not None and hasattr(led, 'set_brightness'):
-                brightness = max(0, min(255, int(brightness)))
-                success = led.set_brightness(brightness)
-                result["brightness"] = brightness
-                result["brightness_ok"] = success
-            
-            if idle_brightness is not None and hasattr(led, 'set_idle_brightness'):
-                idle_brightness = max(0, min(255, int(idle_brightness)))
-                success = led.set_idle_brightness(idle_brightness)
-                result["idle_brightness"] = idle_brightness
-                result["idle_brightness_ok"] = success
-                
+            proxy = self.frontend.proxy()
+            if reset:
+                try:
+                    vals = proxy.reset_led_brightness_to_conf().get()
+                    result.update(vals)
+                    result["brightness_ok"] = True
+                    result["idle_brightness_ok"] = True
+                    self.write(result)
+                    return
+                except Exception:
+                    result["brightness_ok"] = False
+                    result["idle_brightness_ok"] = False
+            if brightness is not None:
+                try:
+                    bval = max(0, min(255, int(brightness)))
+                    success = proxy.set_led_brightness(bval).get()
+                    result["brightness"] = bval
+                    result["brightness_ok"] = bool(success)
+                except Exception:
+                    result["brightness_ok"] = False
+            if idle_brightness is not None:
+                try:
+                    ival = max(0, min(255, int(idle_brightness)))
+                    success = proxy.set_led_idle_brightness(ival).get()
+                    result["idle_brightness"] = ival
+                    result["idle_brightness_ok"] = bool(success)
+                except Exception:
+                    result["idle_brightness_ok"] = False
             self.write(result)
         except Exception:
             logger.exception("http: set led brightness failed")

@@ -92,6 +92,15 @@ class RFIDFrontend(_BaseClass):
         led_count = int(self._config.get("led_count", 16))
         led_brightness = int(self._config.get("led_brightness", 60))
         led_idle_brightness = int(self._config.get("led_idle_brightness", 10))
+        # Override with persisted values from LedConfig if present
+        try:
+            led_brightness = int(self._led_cfg.get_brightness())
+        except Exception:
+            pass
+        try:
+            led_idle_brightness = int(self._led_cfg.get_idle_brightness())
+        except Exception:
+            pass
 
         # Initialize LED manager
         try:
@@ -184,7 +193,9 @@ class RFIDFrontend(_BaseClass):
             last_state = None
             while not self._progress_stop.is_set():
                 try:
-                    if self._led and getattr(self._led, '_enabled', False) and self._led_cfg.get("remaining") and self.core is not None:
+                    # Always manage idle/paused/play animations regardless of 'remaining' toggle;
+                    # gate only the remaining-specific visuals inside.
+                    if self._led and getattr(self._led, '_enabled', False) and self.core is not None:
                         state = self.core.playback.get_state().get()
 
                         # Act only on state changes to avoid repeated start/stop calls
@@ -201,17 +212,18 @@ class RFIDFrontend(_BaseClass):
                                     except Exception:
                                         logger.exception("Failed to stop paused sweep on play")
                                     # Immediately update LEDs to show correct remaining progress
-                                    try:
-                                        cp = self.core.playback.get_current_tl_track().get()
-                                        pos_ms = self.core.playback.get_time_position().get()
-                                        length_ms = None
-                                        if cp and cp.track and cp.track.length:
-                                            length_ms = int(cp.track.length)
-                                        if length_ms and length_ms > 0:
-                                            remain_ratio = max(0.0, min(1.0, 1.0 - (pos_ms/float(length_ms))))
-                                            self._led.remaining_progress(remain_ratio, color=(255,255,255))
-                                    except Exception:
-                                        logger.exception("Failed to update remaining progress on resume")
+                                    if self._led_cfg.get("remaining"):
+                                        try:
+                                            cp = self.core.playback.get_current_tl_track().get()
+                                            pos_ms = self.core.playback.get_time_position().get()
+                                            length_ms = None
+                                            if cp and cp.track and cp.track.length:
+                                                length_ms = int(cp.track.length)
+                                            if length_ms and length_ms > 0:
+                                                remain_ratio = max(0.0, min(1.0, 1.0 - (pos_ms/float(length_ms))))
+                                                self._led.remaining_progress(remain_ratio, color=(255,255,255))
+                                        except Exception:
+                                            logger.exception("Failed to update remaining progress on resume")
                                 elif state == "paused":
                                     # Stop standby comet and remaining progress, start paused animation
                                     try:
@@ -219,18 +231,19 @@ class RFIDFrontend(_BaseClass):
                                     except Exception:
                                         pass
                                     # Calculate current remain LEDs for paused animation
-                                    try:
-                                        cp = self.core.playback.get_current_tl_track().get()
-                                        pos_ms = self.core.playback.get_time_position().get()
-                                        length_ms = None
-                                        if cp and cp.track and cp.track.length:
-                                            length_ms = int(cp.track.length)
-                                        if length_ms and length_ms > 0:
-                                            remain_ratio = max(0.0, min(1.0, 1.0 - (pos_ms/float(length_ms))))
-                                            remain_leds = int(round(self._led._led_count * remain_ratio))
-                                            self._led.start_paused_sweep(remain_leds)
-                                    except Exception:
-                                        logger.exception("Failed to start paused sweep")
+                                    if self._led_cfg.get("remaining"):
+                                        try:
+                                            cp = self.core.playback.get_current_tl_track().get()
+                                            pos_ms = self.core.playback.get_time_position().get()
+                                            length_ms = None
+                                            if cp and cp.track and cp.track.length:
+                                                length_ms = int(cp.track.length)
+                                            if length_ms and length_ms > 0:
+                                                remain_ratio = max(0.0, min(1.0, 1.0 - (pos_ms/float(length_ms))))
+                                                remain_leds = int(round(self._led._led_count * remain_ratio))
+                                                self._led.start_paused_sweep(remain_leds)
+                                        except Exception:
+                                            logger.exception("Failed to start paused sweep")
                                 else:
                                     # Stopped: stop paused animation, restart idle comet
                                     try:
@@ -246,7 +259,7 @@ class RFIDFrontend(_BaseClass):
                             last_state = state
 
                         # Track remaining time when playing or paused
-                        if state in ("playing", "paused"):
+                        if state in ("playing", "paused") and self._led_cfg.get("remaining"):
                             cp = self.core.playback.get_current_tl_track().get()
                             pos_ms = self.core.playback.get_time_position().get()
                             length_ms = None
@@ -312,6 +325,83 @@ class RFIDFrontend(_BaseClass):
     def get_led_manager(self) -> Optional[LEDManager]:
         """Return the LED manager instance."""
         return self._led
+
+    # --- LED brightness management (persist + apply) ---
+    def set_led_brightness(self, value: int) -> bool:
+        try:
+            v = max(0, min(255, int(value)))
+        except Exception:
+            return False
+        ok = False
+        try:
+            if self._led and hasattr(self._led, 'set_brightness'):
+                ok = bool(self._led.set_brightness(v))
+        except Exception:
+            ok = False
+        try:
+            self._led_cfg.set_brightness(v)
+        except Exception:
+            pass
+        return ok
+
+    def set_led_idle_brightness(self, value: int) -> bool:
+        try:
+            v = max(0, min(255, int(value)))
+        except Exception:
+            return False
+        ok = False
+        try:
+            if self._led and hasattr(self._led, 'set_idle_brightness'):
+                ok = bool(self._led.set_idle_brightness(v))
+        except Exception:
+            ok = False
+        try:
+            self._led_cfg.set_idle_brightness(v)
+        except Exception:
+            pass
+        return ok
+
+    def get_led_brightness(self) -> int:
+        try:
+            if self._led and hasattr(self._led, 'get_brightness'):
+                return int(self._led.get_brightness())
+        except Exception:
+            pass
+        try:
+            return int(self._led_cfg.get_brightness())
+        except Exception:
+            return 60
+
+    def get_led_idle_brightness(self) -> int:
+        try:
+            if self._led and hasattr(self._led, 'get_idle_brightness'):
+                return int(self._led.get_idle_brightness())
+        except Exception:
+            pass
+        try:
+            return int(self._led_cfg.get_idle_brightness())
+        except Exception:
+            return 10
+
+    def reset_led_brightness_to_conf(self) -> Dict[str, int]:
+        """Reset LED brightness values to conf defaults and persist."""
+        try:
+            b = int(self._config.get("led_brightness", 60))
+        except Exception:
+            b = 60
+        try:
+            ib = int(self._config.get("led_idle_brightness", 10))
+        except Exception:
+            ib = 10
+        try:
+            self.set_led_brightness(b)
+        except Exception:
+            pass
+        try:
+            self.set_led_idle_brightness(ib)
+        except Exception:
+            pass
+        return {"brightness": b, "idle_brightness": ib}
 
     # --- Tag handling ---
     def _play_detect_then_execute(self, mapped_uri: str) -> None:

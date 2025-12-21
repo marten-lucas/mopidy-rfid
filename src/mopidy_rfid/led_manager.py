@@ -205,6 +205,15 @@ class LEDManager:
         try:
             brightness = max(0, min(255, int(brightness)))
             self._idle_brightness = brightness
+            # Apply immediately if standby comet is running
+            try:
+                if getattr(self, '_standby_running', False):
+                    strip = self._get_strip()
+                    if strip:
+                        strip.setBrightness(int(self._idle_brightness))
+                        strip.show()
+            except Exception:
+                pass
             logger.info("LED: idle brightness set to %d", brightness)
             return True
         except Exception:
