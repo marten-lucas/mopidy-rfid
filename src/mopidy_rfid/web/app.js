@@ -197,17 +197,23 @@ function renderMappings(map) {
     tdTag.textContent = tag;
     
     const tdDesc = document.createElement('td');
-    tdDesc.className = 'hide-on-small-only';
+    tdDesc.className = 'hide-on-mobile';
     tdDesc.textContent = mapping.description || '-';
     
     const tdUri = document.createElement('td');
-    tdUri.className = 'hide-on-small-only';
+    tdUri.className = 'hide-on-mobile';
     const uri = mapping.uri || mapping; // Support old format
-    tdUri.innerHTML = `<code>${escapeHtml(formatAction(uri))}</code>`;
+    // On narrow screens don't insert the full action text (it will overflow)
+    const isMobile = window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
+    if (!isMobile) {
+      tdUri.innerHTML = `<code>${escapeHtml(formatAction(uri))}</code>`;
+    } else {
+      tdUri.innerHTML = '';
+    }
     
     // Info icon for mobile
     const tdInfo = document.createElement('td');
-    tdInfo.className = 'show-on-small hide-on-med-and-up';
+    tdInfo.className = 'show-on-mobile';
     const infoBtn = document.createElement('a');
     infoBtn.className = 'waves-effect waves-light btn-small teal lighten-2';
     infoBtn.innerHTML = '<i class="material-icons">info</i>';

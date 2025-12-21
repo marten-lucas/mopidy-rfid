@@ -68,3 +68,20 @@ code {
     padding: 1px 4px;
   }
 }
+
+/* Mobile show/hide helpers used for mappings table */
+.show-on-mobile {
+  display: none;
+}
+.hide-on-mobile {
+  display: table-cell;
+}
+
+@media only screen and (max-width: 600px) {
+  .hide-on-mobile {
+    display: none !important;
+  }
+  .show-on-mobile {
+    display: table-cell !important;
+  }
+}
