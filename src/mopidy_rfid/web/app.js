@@ -214,16 +214,14 @@ function renderMappings(map) {
     const tdActions = document.createElement('td');
     tdActions.style.whiteSpace = 'nowrap';
     
-    // Info button (only visible on mobile via CSS)
+    // Info button (only visible on mobile via CSS) -> opens modal
     const infoBtn = document.createElement('a');
     infoBtn.className = 'waves-effect waves-light btn-small teal lighten-2 show-on-mobile';
     infoBtn.innerHTML = '<i class="material-icons">info</i>';
     infoBtn.style.marginRight = '5px';
     infoBtn.addEventListener('click', (ev) => {
       ev.stopPropagation();
-      const description = mapping.description || 'No description';
-      const action = formatAction(uri);
-      M.toast({html: `<strong>${tag}</strong><br>${description}<br><code style="background:#fff;padding:2px 4px;border-radius:2px;">${action}</code>`, displayLength: 6000});
+      openMappingInfoModal(tag, mapping);
     });
 
     const editBtn = document.createElement('a');
@@ -939,4 +937,50 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initial load
   fetchMappings();
   connectWebSocket();
+});
+
+// Open mapping info modal (compact URI display)
+function openMappingInfoModal(tag, mapping) {
+  try {
+    const uri = mapping.uri || mapping;
+    const description = mapping.description || '-';
+    document.getElementById('info-modal-tag').textContent = tag;
+    document.getElementById('info-modal-desc').textContent = description;
+    document.getElementById('info-modal-uri').textContent = uri;
+    const modalEl = document.getElementById('mapping-info-modal');
+    modalEl.dataset.uri = uri;
+    let modal = M.Modal.getInstance(modalEl);
+    if (!modal) {
+      M.Modal.init([modalEl]);
+      modal = M.Modal.getInstance(modalEl);
+    }
+    modal.open();
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+// Copy URI from info modal
+document.addEventListener('DOMContentLoaded', () => {
+  const copyBtn = document.getElementById('info-modal-copy');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      try {
+        const modalEl = document.getElementById('mapping-info-modal');
+        const uri = modalEl.dataset.uri || '';
+        if (uri && navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(uri).then(() => {
+            M.toast({html: 'URI copied', classes: 'green'});
+          }).catch(() => {
+            M.toast({html: 'Copy failed', classes: 'red'});
+          });
+        } else {
+          M.toast({html: 'Clipboard unavailable', classes: 'orange'});
+        }
+      } catch (err) {
+        M.toast({html: 'Copy failed', classes: 'red'});
+      }
+    });
+  }
 });
