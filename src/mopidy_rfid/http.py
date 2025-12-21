@@ -339,6 +339,64 @@ class LedSettingsHandler(tornado.web.RequestHandler):
             self.write({"ok": False})
 
 
+class LedBrightnessHandler(tornado.web.RequestHandler):
+    def initialize(self, frontend: Any):
+        self.frontend = frontend
+
+    async def get(self):
+        try:
+            if self.frontend is None:
+                self.set_status(503)
+                self.write({"brightness": 60, "idle_brightness": 10, "error": "frontend not available"})
+                return
+            led = self.frontend.proxy().get_led_manager().get()
+            if led and hasattr(led, 'get_brightness'):
+                brightness = led.get_brightness()
+                idle_brightness = led.get_idle_brightness() if hasattr(led, 'get_idle_brightness') else 10
+                self.write({"brightness": brightness, "idle_brightness": idle_brightness})
+            else:
+                self.write({"brightness": 60, "idle_brightness": 10, "error": "LED not available"})
+        except Exception:
+            logger.exception("http: get led brightness failed")
+            self.set_status(500)
+            self.write({"brightness": 60, "idle_brightness": 10})
+
+    async def post(self):
+        try:
+            if self.frontend is None:
+                self.set_status(503)
+                self.write({"ok": False, "error": "frontend not available"})
+                return
+            data = json.loads(self.request.body.decode("utf-8"))
+            brightness = data.get("brightness")
+            idle_brightness = data.get("idle_brightness")
+            
+            led = self.frontend.proxy().get_led_manager().get()
+            if not led:
+                self.write({"ok": False, "error": "LED not available"})
+                return
+                
+            result = {"ok": True}
+            
+            if brightness is not None and hasattr(led, 'set_brightness'):
+                brightness = max(0, min(255, int(brightness)))
+                success = led.set_brightness(brightness)
+                result["brightness"] = brightness
+                result["brightness_ok"] = success
+            
+            if idle_brightness is not None and hasattr(led, 'set_idle_brightness'):
+                idle_brightness = max(0, min(255, int(idle_brightness)))
+                success = led.set_idle_brightness(idle_brightness)
+                result["idle_brightness"] = idle_brightness
+                result["idle_brightness_ok"] = success
+                
+            self.write(result)
+        except Exception:
+            logger.exception("http: set led brightness failed")
+            self.set_status(400)
+            self.write({"ok": False})
+
+
 class StatusHandler(tornado.web.RequestHandler):
     def initialize(self, frontend: Any):
         self.frontend = frontend
@@ -405,6 +463,7 @@ def factory(config: Any, core: Any) -> list[tuple[str, Any, dict]]:
         (r"/api/last-scan", LastScanHandler, {}),
         (r"/api/sounds", SoundsHandler, {"config": config, "core": core}),
         (r"/api/led-settings", LedSettingsHandler, {}),
+        (r"/api/led-brightness", LedBrightnessHandler, {"frontend": frontend}),
         (r"/api/status", StatusHandler, {"frontend": frontend}),
         (r"/api/ping", PingHandler, {}),
         (r"/ws", WSHandler, {}),

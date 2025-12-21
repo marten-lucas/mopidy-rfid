@@ -91,6 +91,7 @@ class RFIDFrontend(_BaseClass):
         led_pin = int(self._config.get("led_pin", 12))
         led_count = int(self._config.get("led_count", 16))
         led_brightness = int(self._config.get("led_brightness", 60))
+        led_idle_brightness = int(self._config.get("led_idle_brightness", 10))
 
         # Initialize LED manager
         try:
@@ -99,6 +100,7 @@ class RFIDFrontend(_BaseClass):
                 led_pin=led_pin,
                 led_count=led_count,
                 brightness=led_brightness,
+                idle_brightness=led_idle_brightness,
                 button_pin=pin_button_led,
             )
             if self._led and getattr(self._led, '_enabled', False):
@@ -306,6 +308,10 @@ class RFIDFrontend(_BaseClass):
             if k not in out:
                 out[k] = {"uri": v, "description": ""}
         return out
+
+    def get_led_manager(self) -> Optional[LEDManager]:
+        """Return the LED manager instance."""
+        return self._led
 
     # --- Tag handling ---
     def _play_detect_then_execute(self, mapped_uri: str) -> None:

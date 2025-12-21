@@ -34,12 +34,14 @@ class LEDManager:
         led_pin: int = 12,
         led_count: int = 16,
         brightness: int = 60,
+        idle_brightness: int = 10,
         button_pin: int = 13,
     ) -> None:
         self._enabled = led_enabled and PixelStrip is not None
         self._led_pin = led_pin
         self._led_count = led_count
         self._brightness = brightness
+        self._idle_brightness = idle_brightness
         self._button_pin = button_pin
         self._lock = threading.Lock()
         self._strip: Optional[Any] = None
@@ -178,6 +180,41 @@ class LEDManager:
         except Exception:
             pass
 
+    def set_brightness(self, brightness: int) -> bool:
+        """Set LED brightness (0-255) and apply immediately."""
+        try:
+            brightness = max(0, min(255, int(brightness)))
+            self._brightness = brightness
+            self._apply_brightness()
+            # Force refresh of current display
+            strip = self._get_strip()
+            if strip:
+                strip.show()
+            logger.info("LED: brightness set to %d", brightness)
+            return True
+        except Exception:
+            logger.exception("LED: failed to set brightness")
+            return False
+
+    def get_brightness(self) -> int:
+        """Get current LED brightness."""
+        return self._brightness
+
+    def set_idle_brightness(self, brightness: int) -> bool:
+        """Set idle animation brightness (0-255)."""
+        try:
+            brightness = max(0, min(255, int(brightness)))
+            self._idle_brightness = brightness
+            logger.info("LED: idle brightness set to %d", brightness)
+            return True
+        except Exception:
+            logger.exception("LED: failed to set idle brightness")
+            return False
+
+    def get_idle_brightness(self) -> int:
+        """Get current idle animation brightness."""
+        return self._idle_brightness
+
     def welcome_scan(self, color=(0, 255, 0), delay=0.05):
         strip = self._get_strip()
         count = self._get_count()
@@ -278,9 +315,10 @@ class LEDManager:
         if not strip:
             return
 
-        # Apply configured brightness for standby comet
+        # Apply idle brightness for standby comet
         try:
-            self._apply_brightness()
+            if hasattr(self, '_idle_brightness'):
+                strip.setBrightness(int(self._idle_brightness))
         except Exception:
             pass
 

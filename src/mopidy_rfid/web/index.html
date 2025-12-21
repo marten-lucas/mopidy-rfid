@@ -103,6 +103,14 @@
                   <span>Remaining track animation</span>
                 </label>
               </p>
+              <div style="margin-top: 20px; margin-bottom: 10px;">
+                <label>LED Brightness (Playback): <span id="brightness-value">60</span></label>
+                <input type="range" id="brightness-slider" min="10" max="255" value="60" step="5" style="width: 100%;">
+              </div>
+              <div style="margin-bottom: 20px;">
+                <label>LED Brightness (Idle): <span id="idle-brightness-value">10</span></label>
+                <input type="range" id="idle-brightness-slider" min="1" max="50" value="10" step="1" style="width: 100%;">
+              </div>
               <a id="led-save" class="btn">Save LED Settings</a>
             </div>
           </div>

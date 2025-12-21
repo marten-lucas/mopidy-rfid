@@ -649,6 +649,16 @@ function loadLedSettings() {
     document.getElementById('led-farewell').checked = !!data.farewell;
     document.getElementById('led-remaining').checked = !!data.remaining;
   }).catch(()=>{});
+  
+  // Load brightness
+  fetch('/rfid/api/led-brightness').then(r=>r.json()).then(data=>{
+    const brightness = data.brightness || 60;
+    const idleBrightness = data.idle_brightness || 10;
+    document.getElementById('brightness-slider').value = brightness;
+    document.getElementById('brightness-value').textContent = brightness;
+    document.getElementById('idle-brightness-slider').value = idleBrightness;
+    document.getElementById('idle-brightness-value').textContent = idleBrightness;
+  }).catch(()=>{});
 }
 
 function saveLedSettings() {
@@ -841,6 +851,52 @@ document.addEventListener('DOMContentLoaded', () => {
   // LED settings
   loadLedSettings();
   document.getElementById('led-save').addEventListener('click', saveLedSettings);
+  
+  // LED brightness slider
+  let brightnessTimeout = null;
+  document.getElementById('brightness-slider').addEventListener('input', (e) => {
+    const brightness = e.target.value;
+    document.getElementById('brightness-value').textContent = brightness;
+    
+    // Debounce API calls - update live after 200ms
+    if (brightnessTimeout) clearTimeout(brightnessTimeout);
+    brightnessTimeout = setTimeout(() => {
+      fetch('/rfid/api/led-brightness', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({brightness: parseInt(brightness)})
+      }).then(r => {
+        if (r.ok) {
+          M.toast({html: `Brightness: ${brightness}`, classes: 'blue', displayLength: 1000});
+        }
+      }).catch(() => {
+        M.toast({html: 'Failed to update brightness', classes: 'red'});
+      });
+    }, 200);
+  });
+  
+  // LED idle brightness slider
+  let idleBrightnessTimeout = null;
+  document.getElementById('idle-brightness-slider').addEventListener('input', (e) => {
+    const idleBrightness = e.target.value;
+    document.getElementById('idle-brightness-value').textContent = idleBrightness;
+    
+    // Debounce API calls - update live after 200ms
+    if (idleBrightnessTimeout) clearTimeout(idleBrightnessTimeout);
+    idleBrightnessTimeout = setTimeout(() => {
+      fetch('/rfid/api/led-brightness', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({idle_brightness: parseInt(idleBrightness)})
+      }).then(r => {
+        if (r.ok) {
+          M.toast({html: `Idle Brightness: ${idleBrightness}`, classes: 'blue', displayLength: 1000});
+        }
+      }).catch(() => {
+        M.toast({html: 'Failed to update idle brightness', classes: 'red'});
+      });
+    }, 200);
+  });
   
   // Status
   loadStatus();

@@ -38,6 +38,7 @@ class Extension(ext.Extension):
         schema["led_pin"] = mopidy_config.Integer(minimum=0, maximum=40)
         schema["led_count"] = mopidy_config.Integer(minimum=1)
         schema["led_brightness"] = mopidy_config.Integer(minimum=0, maximum=255)
+        schema["led_idle_brightness"] = mopidy_config.Integer(minimum=0, maximum=255)
         
         # Datenbank Pfad
         schema["mappings_db_path"] = mopidy_config.Path(optional=True)
