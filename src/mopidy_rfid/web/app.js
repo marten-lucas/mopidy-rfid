@@ -197,7 +197,7 @@ function renderMappings(map) {
     tdTag.textContent = tag;
     
     const tdDesc = document.createElement('td');
-    tdDesc.className = 'hide-on-mobile';
+    tdDesc.className = 'mapping-desc';
     tdDesc.textContent = mapping.description || '-';
     
     const tdUri = document.createElement('td');
@@ -211,11 +211,12 @@ function renderMappings(map) {
       tdUri.innerHTML = '';
     }
     
-    // Info icon for mobile
-    const tdInfo = document.createElement('td');
-    tdInfo.className = 'show-on-mobile';
+    const tdActions = document.createElement('td');
+    tdActions.style.whiteSpace = 'nowrap';
+    
+    // Info button (only visible on mobile via CSS)
     const infoBtn = document.createElement('a');
-    infoBtn.className = 'waves-effect waves-light btn-small teal lighten-2';
+    infoBtn.className = 'waves-effect waves-light btn-small teal lighten-2 show-on-mobile';
     infoBtn.innerHTML = '<i class="material-icons">info</i>';
     infoBtn.style.marginRight = '5px';
     infoBtn.addEventListener('click', (ev) => {
@@ -224,11 +225,7 @@ function renderMappings(map) {
       const action = formatAction(uri);
       M.toast({html: `<strong>${tag}</strong><br>${description}<br><code style="background:#fff;padding:2px 4px;border-radius:2px;">${action}</code>`, displayLength: 6000});
     });
-    tdInfo.appendChild(infoBtn);
-    
-    const tdActions = document.createElement('td');
-    tdActions.style.whiteSpace = 'nowrap';
-    
+
     const editBtn = document.createElement('a');
     editBtn.className = 'waves-effect waves-light btn-small blue';
     editBtn.innerHTML = '<i class="material-icons">edit</i>';
@@ -248,6 +245,7 @@ function renderMappings(map) {
       }
     });
     
+    tdActions.appendChild(infoBtn);
     tdActions.appendChild(editBtn);
     tdActions.appendChild(delBtn);
     

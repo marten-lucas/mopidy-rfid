@@ -85,3 +85,15 @@ code {
     display: table-cell !important;
   }
 }
+
+/* Truncate description on small screens */
+@media only screen and (max-width: 600px) {
+  .mapping-desc {
+    max-width: 140px;
+    display: inline-block;
+    vertical-align: middle;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
