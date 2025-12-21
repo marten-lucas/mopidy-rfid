@@ -180,7 +180,7 @@ function renderMappings(map) {
   
   const tags = Object.keys(map);
   if (tags.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" class="center grey-text">No mappings yet</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="center grey-text">No mappings yet</td></tr>';
     updateSettings(map);
     return;
   }
@@ -252,7 +252,6 @@ function renderMappings(map) {
     tr.appendChild(tdTag);
     tr.appendChild(tdDesc);
     tr.appendChild(tdUri);
-    tr.appendChild(tdInfo);
     tr.appendChild(tdActions);
     
     tbody.appendChild(tr);
