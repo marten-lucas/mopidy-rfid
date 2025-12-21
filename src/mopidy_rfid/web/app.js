@@ -852,9 +852,13 @@ document.addEventListener('DOMContentLoaded', () => {
   loadLedSettings();
   document.getElementById('led-save').addEventListener('click', saveLedSettings);
   
+  // Initialize Materialize range sliders
+  const sliders = document.querySelectorAll('input[type=range]');
+  M.Range.init(sliders);
+  
   // LED brightness slider
   let brightnessTimeout = null;
-  document.getElementById('brightness-slider').addEventListener('input', (e) => {
+  const updateBrightness = (e) => {
     const brightness = e.target.value;
     document.getElementById('brightness-value').textContent = brightness;
     
@@ -873,11 +877,13 @@ document.addEventListener('DOMContentLoaded', () => {
         M.toast({html: 'Failed to update brightness', classes: 'red'});
       });
     }, 200);
-  });
+  };
+  document.getElementById('brightness-slider').addEventListener('input', updateBrightness);
+  document.getElementById('brightness-slider').addEventListener('change', updateBrightness);
   
   // LED idle brightness slider
   let idleBrightnessTimeout = null;
-  document.getElementById('idle-brightness-slider').addEventListener('input', (e) => {
+  const updateIdleBrightness = (e) => {
     const idleBrightness = e.target.value;
     document.getElementById('idle-brightness-value').textContent = idleBrightness;
     
@@ -896,7 +902,9 @@ document.addEventListener('DOMContentLoaded', () => {
         M.toast({html: 'Failed to update idle brightness', classes: 'red'});
       });
     }, 200);
-  });
+  };
+  document.getElementById('idle-brightness-slider').addEventListener('input', updateIdleBrightness);
+  document.getElementById('idle-brightness-slider').addEventListener('change', updateIdleBrightness);
   
   // Status
   loadStatus();
