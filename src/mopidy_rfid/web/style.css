@@ -45,3 +45,26 @@ code {
   max-height: 400px;
   overflow-y: auto;
 }
+
+/* Responsive table styling */
+@media only screen and (max-width: 600px) {
+  table th, table td {
+    padding: 8px 5px;
+  }
+  
+  .btn-small {
+    padding: 0 8px;
+    height: 32px;
+    line-height: 32px;
+  }
+  
+  .btn-small i {
+    font-size: 1.2rem;
+    line-height: 32px;
+  }
+  
+  code {
+    font-size: 0.75em;
+    padding: 1px 4px;
+  }
+}

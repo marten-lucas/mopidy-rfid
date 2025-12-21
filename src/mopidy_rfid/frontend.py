@@ -198,6 +198,18 @@ class RFIDFrontend(_BaseClass):
                                         self._led.stop_paused_sweep()
                                     except Exception:
                                         logger.exception("Failed to stop paused sweep on play")
+                                    # Immediately update LEDs to show correct remaining progress
+                                    try:
+                                        cp = self.core.playback.get_current_tl_track().get()
+                                        pos_ms = self.core.playback.get_time_position().get()
+                                        length_ms = None
+                                        if cp and cp.track and cp.track.length:
+                                            length_ms = int(cp.track.length)
+                                        if length_ms and length_ms > 0:
+                                            remain_ratio = max(0.0, min(1.0, 1.0 - (pos_ms/float(length_ms))))
+                                            self._led.remaining_progress(remain_ratio, color=(255,255,255))
+                                    except Exception:
+                                        logger.exception("Failed to update remaining progress on resume")
                                 elif state == "paused":
                                     # Stop standby comet and remaining progress, start paused animation
                                     try:

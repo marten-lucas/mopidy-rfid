@@ -5,6 +5,7 @@ let waitingForScan = false;
 let searchTimeout = null;
 let scanPollTimer = null;
 let currentSoundKey = null;
+let lastScannedTag = null;
 
 // WebSocket connection
 function connectWebSocket() {
@@ -196,11 +197,28 @@ function renderMappings(map) {
     tdTag.textContent = tag;
     
     const tdDesc = document.createElement('td');
+    tdDesc.className = 'hide-on-small-only';
     tdDesc.textContent = mapping.description || '-';
     
     const tdUri = document.createElement('td');
+    tdUri.className = 'hide-on-small-only';
     const uri = mapping.uri || mapping; // Support old format
     tdUri.innerHTML = `<code>${escapeHtml(formatAction(uri))}</code>`;
+    
+    // Info icon for mobile
+    const tdInfo = document.createElement('td');
+    tdInfo.className = 'show-on-small hide-on-med-and-up';
+    const infoBtn = document.createElement('a');
+    infoBtn.className = 'waves-effect waves-light btn-small teal lighten-2';
+    infoBtn.innerHTML = '<i class="material-icons">info</i>';
+    infoBtn.style.marginRight = '5px';
+    infoBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const description = mapping.description || 'No description';
+      const action = formatAction(uri);
+      M.toast({html: `<strong>${tag}</strong><br>${description}<br><code style="background:#fff;padding:2px 4px;border-radius:2px;">${action}</code>`, displayLength: 6000});
+    });
+    tdInfo.appendChild(infoBtn);
     
     const tdActions = document.createElement('td');
     tdActions.style.whiteSpace = 'nowrap';
@@ -230,6 +248,7 @@ function renderMappings(map) {
     tr.appendChild(tdTag);
     tr.appendChild(tdDesc);
     tr.appendChild(tdUri);
+    tr.appendChild(tdInfo);
     tr.appendChild(tdActions);
     
     tbody.appendChild(tr);
@@ -470,13 +489,19 @@ function resetModal() {
 
 function startScanPolling() {
   stopScanPolling();
+  lastScannedTag = null; // Reset when starting new polling
   scanPollTimer = setInterval(() => {
     if (!waitingForScan) return;
     fetch('/rfid/api/last-scan')
       .then(r => r.json())
       .then(data => {
         if (data && data.tag_id) {
-          handleScannedTag(String(data.tag_id));
+          const tagId = String(data.tag_id);
+          // Only process if it's a different tag
+          if (tagId !== lastScannedTag) {
+            lastScannedTag = tagId;
+            handleScannedTag(tagId);
+          }
         }
       })
       .catch(() => {});
@@ -488,6 +513,7 @@ function stopScanPolling() {
     clearInterval(scanPollTimer);
     scanPollTimer = null;
   }
+  lastScannedTag = null; // Reset when stopping
 }
 
 function handleScannedTag(tagId, action) {
