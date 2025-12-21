@@ -201,19 +201,23 @@ class RFIDFrontend(_BaseClass):
                         # Act only on state changes to avoid repeated start/stop calls
                         if state != last_state:
                             try:
+                                logger.info("Frontend: playback state changed to %s", state)
                                 if state == "playing":
                                     # Stop idle comet and paused animation when playback starts
                                     try:
+                                        logger.info("Frontend: stop standby comet (on play)")
                                         self._led.stop_standby_comet()
                                     except Exception:
                                         logger.exception("Failed to stop standby comet on play")
                                     try:
+                                        logger.info("Frontend: stop paused sweep (on play)")
                                         self._led.stop_paused_sweep()
                                     except Exception:
                                         logger.exception("Failed to stop paused sweep on play")
                                     # Immediately update LEDs to show correct remaining progress
                                     if self._led_cfg.get("remaining"):
                                         try:
+                                            logger.info("Frontend: update remaining progress on resume")
                                             cp = self.core.playback.get_current_tl_track().get()
                                             pos_ms = self.core.playback.get_time_position().get()
                                             length_ms = None
@@ -227,12 +231,14 @@ class RFIDFrontend(_BaseClass):
                                 elif state == "paused":
                                     # Stop standby comet and remaining progress, start paused animation
                                     try:
+                                        logger.info("Frontend: stop standby comet (on pause)")
                                         self._led.stop_standby_comet()
                                     except Exception:
                                         pass
                                     # Calculate current remain LEDs for paused animation
                                     if self._led_cfg.get("remaining"):
                                         try:
+                                            logger.info("Frontend: start paused sweep")
                                             cp = self.core.playback.get_current_tl_track().get()
                                             pos_ms = self.core.playback.get_time_position().get()
                                             length_ms = None
@@ -247,10 +253,12 @@ class RFIDFrontend(_BaseClass):
                                 else:
                                     # Stopped: stop paused animation, restart idle comet
                                     try:
+                                        logger.info("Frontend: stop paused sweep (on stop)")
                                         self._led.stop_paused_sweep()
                                     except Exception:
                                         pass
                                     try:
+                                        logger.info("Frontend: start standby comet (on stop)")
                                         self._led.start_standby_comet(color=(0,8,0), delay=5.0, trail=2)
                                     except Exception:
                                         logger.exception("Failed to start standby comet on stop")

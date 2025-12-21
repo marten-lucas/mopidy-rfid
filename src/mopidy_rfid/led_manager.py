@@ -324,6 +324,11 @@ class LEDManager:
         if not strip:
             return
 
+        logger.info(
+            "LED: starting standby comet color=%s delay=%.2f trail=%d idle_brightness=%d",
+            color, delay, trail, getattr(self, '_idle_brightness', 10)
+        )
+
         # Apply idle brightness for standby comet
         try:
             if hasattr(self, '_idle_brightness'):
@@ -346,6 +351,11 @@ class LEDManager:
                 try:
                     # Build and show frame atomically under the lock
                     with self._lock:
+                        # Re-apply idle brightness each frame to avoid overrides
+                        try:
+                            strip.setBrightness(int(self._idle_brightness))
+                        except Exception:
+                            pass
                         # Clear all
                         for i in range(count):
                             strip.setPixelColor(i, off)
@@ -375,6 +385,7 @@ class LEDManager:
 
     def stop_standby_comet(self):
         """Stop the standby comet animation. Wait for thread to exit; do not clear ring here."""
+        logger.info("LED: stopping standby comet")
         try:
             if hasattr(self, '_standby_stop') and self._standby_stop:
                 try:
@@ -398,6 +409,8 @@ class LEDManager:
         count = self._get_count()
         if not strip:
             return
+
+        logger.info("LED: starting paused sweep remain_leds=%d", remain_leds)
 
         # Apply configured brightness for paused animation
         try:
@@ -451,6 +464,7 @@ class LEDManager:
 
     def stop_paused_sweep(self):
         """Stop the paused sweep animation."""
+        logger.info("LED: stopping paused sweep")
         try:
             if hasattr(self, '_paused_stop') and self._paused_stop:
                 try:
