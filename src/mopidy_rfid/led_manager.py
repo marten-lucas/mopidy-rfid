@@ -403,6 +403,8 @@ class LEDManager:
         self._paused_stop = threading.Event()
         self._paused_running = True
         self._paused_remain_leds = remain_leds
+        # Track last scan position so we can clear/convert it on resume
+        self._paused_last_scan_pos = None
         stop_ev = self._paused_stop
 
         def _run():
@@ -421,6 +423,11 @@ class LEDManager:
                         if remain > 0:
                             scan_pos = idx % remain
                             strip.setPixelColor(scan_pos, self._color(sweep_color))
+                            # remember last green position so it can be cleared to white on resume
+                            try:
+                                self._paused_last_scan_pos = int(scan_pos)
+                            except Exception:
+                                self._paused_last_scan_pos = None
                         strip.show()
 
                     idx = (idx + 1) % max(1, remain)
@@ -447,6 +454,22 @@ class LEDManager:
                         th.join(timeout=1.0)
                     except Exception:
                         pass
+                # After thread stopped, convert any lingering scan pixel to white
+                try:
+                    strip = self._get_strip()
+                    pos = getattr(self, '_paused_last_scan_pos', None)
+                    if strip is not None and pos is not None:
+                        with self._lock:
+                            try:
+                                # set the last scan LED to white so remaining leds appear white on resume
+                                strip.setPixelColor(int(pos), self._color((255, 255, 255)))
+                                strip.show()
+                            except Exception:
+                                pass
+                        # clear stored position
+                        self._paused_last_scan_pos = None
+                except Exception:
+                    pass
                 self._paused_running = False
         except Exception:
             pass
