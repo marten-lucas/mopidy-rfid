@@ -296,7 +296,12 @@ class RFIDFrontend(_BaseClass):
                                     if state == "playing":
                                         self._led.remaining_progress(remain_ratio, color=(255,255,255))
                                     elif state == "paused":
-                                        # Update paused animation remain count
+                                        # Ensure paused sweep is running, then update remain count
+                                        try:
+                                            if not getattr(self._led, "_paused_running", False):
+                                                self._led.start_paused_sweep(remain_leds)
+                                        except Exception:
+                                            pass
                                         self._led.update_paused_remain(remain_leds)
                                 except Exception:
                                     logger.exception("Progress updater: LED update failed")
