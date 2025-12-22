@@ -385,8 +385,11 @@ class LEDManager:
 
     def stop_standby_comet(self):
         """Stop the standby comet animation. Wait for thread to exit; do not clear ring here."""
-        logger.info("LED: stopping standby comet")
         try:
+            # Fast exit when not running to avoid noisy logs
+            if not getattr(self, '_standby_running', False):
+                return
+            logger.debug("LED: stopping standby comet")
             if hasattr(self, '_standby_stop') and self._standby_stop:
                 try:
                     self._standby_stop.set()

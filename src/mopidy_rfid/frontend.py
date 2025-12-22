@@ -4,6 +4,7 @@ import logging
 import time
 import threading
 from typing import Any, Dict, Optional, TYPE_CHECKING
+from urllib.parse import urlparse, unquote
 
 if TYPE_CHECKING:
     from mopidy.core import Core  # type: ignore
@@ -214,24 +215,36 @@ class RFIDFrontend(_BaseClass):
                                 if state == "playing":
                                     # Stop idle comet and paused animation when playback starts
                                     try:
-                                        logger.info("Frontend: stop standby comet (on play)")
+                                        if getattr(self._led, "_standby_running", False):
+                                            logger.debug("Frontend: stop standby comet (on play)")
                                         self._led.stop_standby_comet()
                                     except Exception:
                                         logger.exception("Failed to stop standby comet on play")
                                     try:
-                                        logger.info("Frontend: stop paused sweep (on play)")
+                                        if getattr(self._led, "_paused_running", False):
+                                            logger.debug("Frontend: stop paused sweep (on play)")
                                         self._led.stop_paused_sweep()
                                     except Exception:
                                         logger.exception("Failed to stop paused sweep on play")
                                     # Immediately update LEDs to show correct remaining progress
                                     if self._led_cfg.get("remaining"):
                                         try:
-                                            logger.info("Frontend: update remaining progress on resume")
+                                            logger.debug("Frontend: update remaining progress on resume")
                                             cp = self.core.playback.get_current_tl_track().get()
                                             pos_ms = self.core.playback.get_time_position().get()
                                             length_ms = None
-                                            if cp and cp.track and cp.track.length:
-                                                length_ms = int(cp.track.length)
+                                            try:
+                                                if cp and cp.track and cp.track.length:
+                                                    length_ms = int(cp.track.length)
+                                            except Exception:
+                                                length_ms = None
+                                            # Fallback: probe file URI length via mutagen if not provided by backend
+                                            if (not length_ms or length_ms <= 0) and cp and getattr(cp, "track", None):
+                                                try:
+                                                    uri = getattr(cp.track, "uri", None)
+                                                    length_ms = self._probe_file_length_ms(uri)
+                                                except Exception:
+                                                    pass
                                             if length_ms and length_ms > 0:
                                                 remain_ratio = max(0.0, min(1.0, 1.0 - (pos_ms/float(length_ms))))
                                                 self._led.remaining_progress(remain_ratio, color=(255,255,255))
@@ -240,19 +253,29 @@ class RFIDFrontend(_BaseClass):
                                 elif state == "paused":
                                     # Stop standby comet and remaining progress, start paused animation
                                     try:
-                                        logger.info("Frontend: stop standby comet (on pause)")
+                                        if getattr(self._led, "_standby_running", False):
+                                            logger.debug("Frontend: stop standby comet (on pause)")
                                         self._led.stop_standby_comet()
                                     except Exception:
                                         pass
                                     # Calculate current remain LEDs for paused animation
                                     if self._led_cfg.get("remaining"):
                                         try:
-                                            logger.info("Frontend: start paused sweep")
+                                            logger.debug("Frontend: start paused sweep")
                                             cp = self.core.playback.get_current_tl_track().get()
                                             pos_ms = self.core.playback.get_time_position().get()
                                             length_ms = None
-                                            if cp and cp.track and cp.track.length:
-                                                length_ms = int(cp.track.length)
+                                            try:
+                                                if cp and cp.track and cp.track.length:
+                                                    length_ms = int(cp.track.length)
+                                            except Exception:
+                                                length_ms = None
+                                            if (not length_ms or length_ms <= 0) and cp and getattr(cp, "track", None):
+                                                try:
+                                                    uri = getattr(cp.track, "uri", None)
+                                                    length_ms = self._probe_file_length_ms(uri)
+                                                except Exception:
+                                                    pass
                                             if length_ms and length_ms > 0:
                                                 remain_ratio = max(0.0, min(1.0, 1.0 - (pos_ms/float(length_ms))))
                                                 remain_leds = int(round(self._led._led_count * remain_ratio))
@@ -262,12 +285,13 @@ class RFIDFrontend(_BaseClass):
                                 else:
                                     # Stopped: stop paused animation, restart idle comet
                                     try:
-                                        logger.info("Frontend: stop paused sweep (on stop)")
+                                        if getattr(self._led, "_paused_running", False):
+                                            logger.debug("Frontend: stop paused sweep (on stop)")
                                         self._led.stop_paused_sweep()
                                     except Exception:
                                         pass
                                     try:
-                                        logger.info("Frontend: start standby comet (on stop)")
+                                        logger.debug("Frontend: start standby comet (on stop)")
                                         self._led.start_standby_comet(color=(0,8,0), delay=5.0, trail=2)
                                     except Exception:
                                         logger.exception("Failed to start standby comet on stop")
@@ -285,6 +309,15 @@ class RFIDFrontend(_BaseClass):
                                     length_ms = int(cp.track.length)
                             except Exception:
                                 length_ms = None
+                            # Fallback probe for file URIs if backend didn't provide a length yet
+                            if (not length_ms or length_ms <= 0) and cp and getattr(cp, "track", None):
+                                try:
+                                    uri = getattr(cp.track, "uri", None)
+                                    length_ms = self._probe_file_length_ms(uri)
+                                    if length_ms:
+                                        logger.debug("Frontend: probed file length via mutagen: %d ms", length_ms)
+                                except Exception:
+                                    pass
                             if length_ms and length_ms > 0:
                                 remain_ratio = max(0.0, min(1.0, 1.0 - (pos_ms/float(length_ms))))
                                 remain_leds = int(round(self._led._led_count * remain_ratio))
@@ -315,6 +348,38 @@ class RFIDFrontend(_BaseClass):
                     time.sleep(0.5)
         self._progress_thread = threading.Thread(target=_run, name="led-progress", daemon=True)
         self._progress_thread.start()
+
+    # --- Helpers ---
+    def _probe_file_length_ms(self, uri: Optional[str]) -> Optional[int]:
+        """Try to determine track length in milliseconds for file:// URIs via mutagen.
+
+        Returns None if probing fails or the URI isn't a local file.
+        """
+        try:
+            if not uri or not isinstance(uri, str) or not uri.startswith("file:"):
+                return None
+            parsed = urlparse(uri)
+            path = unquote(parsed.path or "")
+            if not path:
+                return None
+            try:
+                from mutagen import File as MutagenFile  # type: ignore
+            except Exception:
+                return None
+            audio = MutagenFile(path)
+            if audio is None or not hasattr(audio, "info") or getattr(audio, "info", None) is None:
+                return None
+            info = audio.info
+            length_sec = getattr(info, "length", None)
+            if length_sec is None:
+                return None
+            # Convert seconds (float) to milliseconds (int)
+            length_ms = int(float(length_sec) * 1000.0)
+            if length_ms > 0:
+                return length_ms
+            return None
+        except Exception:
+            return None
 
     def _stop_progress_updater(self) -> None:
         try:
