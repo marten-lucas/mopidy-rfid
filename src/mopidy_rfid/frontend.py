@@ -198,6 +198,15 @@ class RFIDFrontend(_BaseClass):
                     if self._led and getattr(self._led, '_enabled', False) and self.core is not None:
                         state = self.core.playback.get_state().get()
 
+                        # Defensive: ensure standby comet is stopped whenever we're not actually stopped.
+                        # This avoids cases where backend state changes are missed and the comet keeps showing
+                        # (seen as three green LEDs) while playing/paused, especially with the 'file' backend.
+                        try:
+                            if state in ("playing", "paused"):
+                                self._led.stop_standby_comet()
+                        except Exception:
+                            pass
+
                         # Act only on state changes to avoid repeated start/stop calls
                         if state != last_state:
                             try:
