@@ -74,11 +74,16 @@ class RFIDFrontend(_BaseClass):
         # LED welcome animation if enabled (may run after hardware init)
         try:
             if self._led and getattr(self._led, '_enabled', False) and self._led_cfg.get("welcome"):
-                # Prefer animated welcome
+                # Prefer animated welcome; use yellow if BT audio connected
                 try:
-                    self._led.welcome_scan(color=(0,255,0), delay=0.05)
+                    col = (255, 255, 0) if self._is_bluetooth_audio_connected() else (0, 255, 0)
+                    self._led.welcome_scan(color=col, delay=0.05)
                 except Exception:
-                    self._led.show_ready()
+                    try:
+                        col = (255, 255, 0) if self._is_bluetooth_audio_connected() else (0, 50, 0)
+                        self._led.show_ready(color=col)
+                    except Exception:
+                        self._led.show_ready()
         except Exception:
             logger.exception("RFIDFrontend: LED welcome animation failed")
         # Start remaining progress updater
@@ -119,10 +124,15 @@ class RFIDFrontend(_BaseClass):
                 except Exception:
                     pass
                 if led_enabled:
-                    self._led.show_ready()
-                    # Start standby comet (very low brightness, slow)
                     try:
-                        self._led.start_standby_comet(color=(0, 8, 0), delay=5.0, trail=2)
+                        col_ready = (255, 255, 0) if self._is_bluetooth_audio_connected() else (0, 50, 0)
+                        self._led.show_ready(color=col_ready)
+                    except Exception:
+                        self._led.show_ready()
+                    # Start standby comet (very low brightness, slow) — yellow if BT connected
+                    try:
+                        col_idle = (8, 8, 0) if self._is_bluetooth_audio_connected() else (0, 8, 0)
+                        self._led.start_standby_comet(color=col_idle, delay=5.0, trail=2)
                     except Exception:
                         pass
         except Exception:
@@ -157,9 +167,14 @@ class RFIDFrontend(_BaseClass):
         try:
             if self._led and self._led_cfg.get("farewell"):
                 try:
-                    self._led.farewell_scan(color=(0,255,0), delay=0.05)
+                    col = (255, 255, 0) if self._is_bluetooth_audio_connected() else (0, 255, 0)
+                    self._led.farewell_scan(color=col, delay=0.05)
                 except Exception:
-                    self._led.flash_confirm()
+                    try:
+                        col = (255, 255, 0) if self._is_bluetooth_audio_connected() else (0, 255, 0)
+                        self._led.flash_confirm(color=col)
+                    except Exception:
+                        self._led.flash_confirm()
         except Exception:
             logger.exception("RFIDFrontend: LED farewell animation failed")
         # Stop remaining progress updater
@@ -292,7 +307,8 @@ class RFIDFrontend(_BaseClass):
                                         pass
                                     try:
                                         logger.debug("Frontend: start standby comet (on stop)")
-                                        self._led.start_standby_comet(color=(0,8,0), delay=5.0, trail=2)
+                                        col_idle = (8, 8, 0) if self._is_bluetooth_audio_connected() else (0, 8, 0)
+                                        self._led.start_standby_comet(color=col_idle, delay=5.0, trail=2)
                                     except Exception:
                                         logger.exception("Failed to start standby comet on stop")
                             except Exception:
@@ -611,10 +627,11 @@ class RFIDFrontend(_BaseClass):
         # Determine mapping first to decide confirmation behavior
         mapped_uri = self.get_mapping(tag_str)
         
-        # LED detected confirm
+        # LED detected confirm (yellow if BT audio connected)
         try:
             if self._led and getattr(self._led, '_enabled', False):
-                self._led.flash_confirm()
+                col = (255, 255, 0) if self._is_bluetooth_audio_connected() else (0, 255, 0)
+                self._led.flash_confirm(color=col)
         except Exception:
             logger.exception("LED flash failed")
         
@@ -679,3 +696,20 @@ class RFIDFrontend(_BaseClass):
             self._play_detect_then_execute(uri)
         except Exception:
             logger.exception("RFIDFrontend: failed detected-then-execute flow")
+
+    # --- Bluetooth audio detection ---
+    def _is_bluetooth_audio_connected(self) -> bool:
+        """Detect if a Bluetooth audio sink is present via PulseAudio.
+
+        Returns True when any sink contains 'bluez' in its name (e.g., 'bluez_sink').
+        Safe fallback to False on errors or when pactl is unavailable.
+        """
+        try:
+            import subprocess
+            out = subprocess.check_output(["pactl", "list", "sinks", "short"], text=True)
+            for line in out.splitlines():
+                if "bluez" in line.lower():
+                    return True
+            return False
+        except Exception:
+            return False
