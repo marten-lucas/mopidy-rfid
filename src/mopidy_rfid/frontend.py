@@ -54,10 +54,18 @@ class RFIDFrontend(_BaseClass):
         self._config_mappings: Dict[str, str] = self._config.get("mappings", {}) or {}
         self._progress_thread: Optional[threading.Thread] = None
         self._progress_stop = threading.Event()
+        # Cached Bluetooth audio status determined at Mopidy startup
+        self._bt_connected: bool = False
 
     def on_start(self) -> None:
         """Called by Mopidy when actor starts. Must return quickly."""
         logger.info("RFIDFrontend starting")
+        # Determine BT audio status once at startup and cache it
+        try:
+            self._bt_connected = bool(self._is_bluetooth_audio_connected())
+            logger.info("RFIDFrontend: BT audio connected at startup: %s", self._bt_connected)
+        except Exception:
+            self._bt_connected = False
         # Start hardware initialization in background thread to avoid blocking
         t = threading.Thread(target=self._init_hardware, name="rfid-hw-init", daemon=True)
         t.start()
@@ -76,11 +84,11 @@ class RFIDFrontend(_BaseClass):
             if self._led and getattr(self._led, '_enabled', False) and self._led_cfg.get("welcome"):
                 # Prefer animated welcome; use yellow if BT audio connected
                 try:
-                    col = (255, 255, 0) if self._is_bluetooth_audio_connected() else (0, 255, 0)
+                    col = (255, 255, 0) if self._bt_connected else (0, 255, 0)
                     self._led.welcome_scan(color=col, delay=0.05)
                 except Exception:
                     try:
-                        col = (255, 255, 0) if self._is_bluetooth_audio_connected() else (0, 50, 0)
+                        col = (255, 255, 0) if self._bt_connected else (0, 50, 0)
                         self._led.show_ready(color=col)
                     except Exception:
                         self._led.show_ready()
@@ -125,13 +133,13 @@ class RFIDFrontend(_BaseClass):
                     pass
                 if led_enabled:
                     try:
-                        col_ready = (255, 255, 0) if self._is_bluetooth_audio_connected() else (0, 50, 0)
+                        col_ready = (255, 255, 0) if self._bt_connected else (0, 50, 0)
                         self._led.show_ready(color=col_ready)
                     except Exception:
                         self._led.show_ready()
-                    # Start standby comet (very low brightness, slow) — yellow if BT connected
+                    # Start standby comet (very low brightness, slow) — yellow if BT connected (cached)
                     try:
-                        col_idle = (8, 8, 0) if self._is_bluetooth_audio_connected() else (0, 8, 0)
+                        col_idle = (8, 8, 0) if self._bt_connected else (0, 8, 0)
                         self._led.start_standby_comet(color=col_idle, delay=5.0, trail=2)
                     except Exception:
                         pass
@@ -167,11 +175,11 @@ class RFIDFrontend(_BaseClass):
         try:
             if self._led and self._led_cfg.get("farewell"):
                 try:
-                    col = (255, 255, 0) if self._is_bluetooth_audio_connected() else (0, 255, 0)
+                    col = (255, 255, 0) if self._bt_connected else (0, 255, 0)
                     self._led.farewell_scan(color=col, delay=0.05)
                 except Exception:
                     try:
-                        col = (255, 255, 0) if self._is_bluetooth_audio_connected() else (0, 255, 0)
+                        col = (255, 255, 0) if self._bt_connected else (0, 255, 0)
                         self._led.flash_confirm(color=col)
                     except Exception:
                         self._led.flash_confirm()
@@ -294,7 +302,8 @@ class RFIDFrontend(_BaseClass):
                                             if length_ms and length_ms > 0:
                                                 remain_ratio = max(0.0, min(1.0, 1.0 - (pos_ms/float(length_ms))))
                                                 remain_leds = int(round(self._led._led_count * remain_ratio))
-                                                self._led.start_paused_sweep(remain_leds)
+                                                sweep_col = (255, 255, 0) if self._is_bluetooth_audio_connected() else (0, 255, 0)
+                                                self._led.start_paused_sweep(remain_leds, sweep_color=sweep_col)
                                         except Exception:
                                             logger.exception("Failed to start paused sweep")
                                 else:
@@ -307,7 +316,7 @@ class RFIDFrontend(_BaseClass):
                                         pass
                                     try:
                                         logger.debug("Frontend: start standby comet (on stop)")
-                                        col_idle = (8, 8, 0) if self._is_bluetooth_audio_connected() else (0, 8, 0)
+                                        col_idle = (8, 8, 0) if self._bt_connected else (0, 8, 0)
                                         self._led.start_standby_comet(color=col_idle, delay=5.0, trail=2)
                                     except Exception:
                                         logger.exception("Failed to start standby comet on stop")
@@ -348,7 +357,8 @@ class RFIDFrontend(_BaseClass):
                                         # Ensure paused sweep is running, then update remain count
                                         try:
                                             if not getattr(self._led, "_paused_running", False):
-                                                self._led.start_paused_sweep(remain_leds)
+                                                sweep_col = (255, 255, 0) if self._bt_connected else (0, 255, 0)
+                                                self._led.start_paused_sweep(remain_leds, sweep_color=sweep_col)
                                         except Exception:
                                             pass
                                         self._led.update_paused_remain(remain_leds)
@@ -359,6 +369,8 @@ class RFIDFrontend(_BaseClass):
                             if hasattr(self._led, '_last_remain_count'):
                                 logger.debug("Progress updater: clearing cache (state=%s)", state)
                                 delattr(self._led, '_last_remain_count')
+
+                        # No periodic BT checks; colors depend on startup-cached status
                     time.sleep(0.2)
                 except Exception:
                     time.sleep(0.5)
@@ -627,10 +639,10 @@ class RFIDFrontend(_BaseClass):
         # Determine mapping first to decide confirmation behavior
         mapped_uri = self.get_mapping(tag_str)
         
-        # LED detected confirm (yellow if BT audio connected)
+        # LED detected confirm (yellow if BT audio connected — cached at startup)
         try:
             if self._led and getattr(self._led, '_enabled', False):
-                col = (255, 255, 0) if self._is_bluetooth_audio_connected() else (0, 255, 0)
+                col = (255, 255, 0) if self._bt_connected else (0, 255, 0)
                 self._led.flash_confirm(color=col)
         except Exception:
             logger.exception("LED flash failed")
@@ -699,17 +711,52 @@ class RFIDFrontend(_BaseClass):
 
     # --- Bluetooth audio detection ---
     def _is_bluetooth_audio_connected(self) -> bool:
-        """Detect if a Bluetooth audio sink is present via PulseAudio.
+        """Detect if a Bluetooth audio device is connected.
 
-        Returns True when any sink contains 'bluez' in its name (e.g., 'bluez_sink').
-        Safe fallback to False on errors or when pactl is unavailable.
+        Strategy:
+        1) PulseAudio: check sinks for 'bluez' (bluez_sink) when pactl is available.
+        2) bluetoothctl: check if any paired device reports 'Connected: yes' and has audio UUIDs.
+        Safe fallback to False on errors.
         """
         try:
             import subprocess
-            out = subprocess.check_output(["pactl", "list", "sinks", "short"], text=True)
-            for line in out.splitlines():
-                if "bluez" in line.lower():
-                    return True
+            import shutil
+
+            # 1) PulseAudio sinks (works on PulseAudio/PipeWire setups)
+            if shutil.which("pactl"):
+                try:
+                    out = subprocess.check_output(["pactl", "list", "sinks", "short"], text=True)
+                    for line in out.splitlines():
+                        ln = line.lower()
+                        if "bluez" in ln or "a2dp" in ln or "bluetooth" in ln:
+                            return True
+                except Exception:
+                    pass
+
+            # 2) bluetoothctl (DietPi/ALSA + BlueALSA commonly relies on this)
+            if shutil.which("bluetoothctl"):
+                try:
+                    devs = subprocess.check_output(["bluetoothctl", "devices"], text=True)
+                    macs = []
+                    for ln in devs.splitlines():
+                        parts = ln.strip().split()
+                        # Format: "Device <MAC> <Name>"
+                        if len(parts) >= 2 and parts[0].lower() == "device":
+                            macs.append(parts[1])
+                    for mac in macs:
+                        try:
+                            info = subprocess.check_output(["bluetoothctl", "info", mac], text=True)
+                            infol = info.lower()
+                            connected = "connected: yes" in infol
+                            # Check Audio Sink UUID presence when possible
+                            has_audio = ("audio sink" in infol) or ("0000110b-0000-1000-8000-00805f9b34fb" in infol)
+                            if connected and (has_audio or "uuid" in infol):
+                                return True
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
+
             return False
         except Exception:
             return False

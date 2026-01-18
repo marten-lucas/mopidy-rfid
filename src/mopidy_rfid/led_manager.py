@@ -430,6 +430,11 @@ class LEDManager:
         self._paused_remain_leds = remain_leds
         # Track last scan position so we can clear/convert it on resume
         self._paused_last_scan_pos = None
+        # Allow dynamic sweep color updates while running
+        try:
+            self._paused_sweep_color = tuple(int(x) for x in sweep_color)
+        except Exception:
+            self._paused_sweep_color = sweep_color
         stop_ev = self._paused_stop
 
         def _run():
@@ -444,10 +449,11 @@ class LEDManager:
                                 strip.setPixelColor(i, self._color(color))
                             else:
                                 strip.setPixelColor(i, self._color((0, 0, 0)))
-                        # Overlay scanning green LED
+                        # Overlay scanning sweep LED (color can be updated live)
                         if remain > 0:
                             scan_pos = idx % remain
-                            strip.setPixelColor(scan_pos, self._color(sweep_color))
+                            cur_col = getattr(self, '_paused_sweep_color', sweep_color)
+                            strip.setPixelColor(scan_pos, self._color(cur_col))
                             # remember last green position so it can be cleared to white on resume
                             try:
                                 self._paused_last_scan_pos = int(scan_pos)
@@ -504,6 +510,14 @@ class LEDManager:
         """Update the number of remaining LEDs for paused animation."""
         if getattr(self, '_paused_running', False):
             self._paused_remain_leds = remain_leds
+
+    def set_paused_sweep_color(self, color=(0, 255, 0)):
+        """Update the sweep LED color while paused animation is running."""
+        try:
+            if getattr(self, '_paused_running', False):
+                self._paused_sweep_color = tuple(int(x) for x in color)
+        except Exception:
+            pass
 
     # Fix helper syntax if present
     try:
